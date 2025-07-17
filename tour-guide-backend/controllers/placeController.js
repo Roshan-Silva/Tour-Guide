@@ -13,10 +13,18 @@ export const addPlace = async (req, res) => {
   }
 }
 
-// get all places
+// get places
 export const getPlaces = async (req, res) => {
-  try {
-    const places = await Place.find();
+  
+    const { tag } = req.query;
+
+    let filter = {};
+    if (tag) {
+        filter.tags = tag;
+    }
+
+    try {
+    const places = await Place.find(filter);
     res.status(200).json(places);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching places', error: err.message });
