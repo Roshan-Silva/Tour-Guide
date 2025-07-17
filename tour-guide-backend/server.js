@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import placeRoutes from './routes/placeRoutes.js';
+import DriverRoutes from './routes/driverRoutes.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -22,8 +23,9 @@ app.get('/', (req, res) => {
   res.send('✅ Tour Guide API is working')
 })
 
-// Place Routes
+// Routes
 app.use('/api/places', placeRoutes);
+app.use('/api/drivers', DriverRoutes);
 
 
 // MongoDB connection
