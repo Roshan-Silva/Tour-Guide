@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import placeRoutes from './routes/placeRoutes.js';
 import DriverRoutes from './routes/driverRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -26,6 +27,7 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/api/places', placeRoutes);
 app.use('/api/drivers', DriverRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 
 // MongoDB connection
