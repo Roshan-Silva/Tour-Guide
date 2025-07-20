@@ -1,4 +1,3 @@
-import { MapPin, Calendar, Users, Star, Phone, Mail, Car, Clock, Mountain, Waves, Building, TreePine } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -17,7 +16,7 @@ export default function Drivers() {
     }, []);
 
     return (
-        <div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-8">Professional Tour Drivers</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {drivers.map(driver => (
@@ -43,11 +42,6 @@ export default function Drivers() {
                         </span>
                     </p>
                 
-                    {/* <div className="flex items-center mb-2">
-                      <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                      <span className="text-sm font-medium">{driver.phoneNumber}</span>
-                      <span className="text-gray-500 text-sm ml-2">{driver.vehicleType}</span>
-                    </div> */}
                     {/* <div className="mb-4">
                       <p className="text-sm text-gray-600 mb-2">Languages:</p>
                       <div className="flex flex-wrap gap-2">
