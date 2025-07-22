@@ -19,7 +19,7 @@ export default function Navbar() {
             </div>
             <nav className="hidden md:flex space-x-8">
                 <Link to="/" className="font-bold">Home</Link>
-                <Link to="/signin" className="font-bold">Sign In</Link>
+                <Link to="/login" className="font-bold">Sign In</Link>
                 <Link to="/signup" className="font-bold">Sign Up</Link>
                 <Link to="/drivers" className="font-bold">Drivers</Link>
             </nav>
