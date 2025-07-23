@@ -3,9 +3,10 @@ import Driver from '../models/Driver.js';
 // Add a new driver
 export const addDriver = async (req, res) => {
   const { name, phoneNumber, vehicleType, availability } = req.body;
+  const image = req.file ? req.file.filename : null; // Get uploaded image name
 
   try {
-    const driver = new Driver({ name, phoneNumber, vehicleType, availability });
+    const driver = new Driver({ name, phoneNumber, vehicleType, image, availability });
     await driver.save();
     res.status(201).json(driver);
   } catch (err) {

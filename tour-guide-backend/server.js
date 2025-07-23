@@ -6,12 +6,21 @@ import placeRoutes from './routes/placeRoutes.js';
 import DriverRoutes from './routes/driverRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Load environment variables from .env file
 dotenv.config();
 
 // initialize express app
 const app = express();
+
+// Fix for __dirname in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static files in 'uploads' folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // port to listen on
 const PORT = process.env.PORT || 5000;

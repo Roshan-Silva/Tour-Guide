@@ -16,6 +16,11 @@ const driverSchema = new mongoose.Schema({
     required: true,
     },
 
+    image:{
+    type: String,
+    required: true,
+    },
+
     availability: {
     type: Boolean,
     default: true,
