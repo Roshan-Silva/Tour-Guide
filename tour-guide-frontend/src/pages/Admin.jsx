@@ -1,0 +1,100 @@
+import { useCallback, useEffect, useState } from 'react';
+import { BarChart3, CalendarDays, Car, Edit3, Map, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import api, { clearSession, getImageUrl } from '../api';
+import { useNavigate } from 'react-router-dom';
+
+const emptyPlace = { name: '', location: '', image: null, currentImage: '', tags: '' };
+const emptyDriver = { name: '', phoneNumber: '', vehicleType: '', availability: true, image: null };
+const tabs = [{ id: 'overview', label: 'Overview', icon: BarChart3 }, { id: 'places', label: 'Places', icon: Map }, { id: 'drivers', label: 'Drivers', icon: Car }, { id: 'bookings', label: 'Bookings', icon: CalendarDays }];
+
+export default function Admin() {
+  const [tab, setTab] = useState('overview');
+  const [dashboard, setDashboard] = useState(null);
+  const [places, setPlaces] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [modal, setModal] = useState(null);
+  const [placeForm, setPlaceForm] = useState(emptyPlace);
+  const [driverForm, setDriverForm] = useState(emptyDriver);
+  const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const [dashboardResponse, placesResponse, driversResponse, bookingsResponse] = await Promise.all([api.get('/admin/dashboard'), api.get('/places'), api.get('/drivers/admin/all'), api.get('/admin/bookings')]);
+      setDashboard(dashboardResponse.data); setPlaces(placesResponse.data); setDrivers(driversResponse.data); setBookings(bookingsResponse.data);
+    } catch (requestError) {
+      if ([401, 403].includes(requestError.response?.status)) { clearSession(); navigate('/login'); return; }
+      setError(requestError.response?.data?.message || 'Could not load admin data.');
+    } finally { setLoading(false); }
+  }, [navigate]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const openPlace = (place = null) => { setError(''); setPlaceForm(place ? { ...place, image: null, currentImage: place.image, tags: (place.tags || []).join(', ') } : emptyPlace); setModal({ type: 'place', id: place?._id }); };
+  const openDriver = (driver = null) => { setError(''); setDriverForm(driver ? { ...driver, image: null } : emptyDriver); setModal({ type: 'driver', id: driver?._id }); };
+
+  const savePlace = async (event) => {
+    event.preventDefault(); setSaving(true); setError('');
+    const payload = new FormData();
+    payload.append('name', placeForm.name);
+    payload.append('location', placeForm.location);
+    payload.append('tags', placeForm.tags);
+    if (placeForm.image) payload.append('image', placeForm.image);
+    try { if (modal.id) await api.put(`/places/${modal.id}`, payload); else await api.post('/places/add', payload); setModal(null); await loadData(); }
+    catch (requestError) { setError(requestError.response?.data?.message || 'Could not save this place.'); }
+    finally { setSaving(false); }
+  };
+
+  const saveDriver = async (event) => {
+    event.preventDefault(); setSaving(true); setError('');
+    const payload = new FormData();
+    payload.append('name', driverForm.name); payload.append('phoneNumber', driverForm.phoneNumber); payload.append('vehicleType', driverForm.vehicleType); payload.append('availability', driverForm.availability);
+    if (driverForm.image) payload.append('image', driverForm.image);
+    try { if (modal.id) await api.put(`/drivers/${modal.id}`, payload); else await api.post('/drivers/add', payload); setModal(null); await loadData(); }
+    catch (requestError) { setError(requestError.response?.data?.message || 'Could not save this driver.'); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (type, item) => {
+    if (!window.confirm(`Permanently delete ${item.name}?`)) return;
+    try { await api.delete(`/${type}/${item._id}`); await loadData(); }
+    catch (requestError) { setError(requestError.response?.data?.message || `Could not delete ${item.name}.`); }
+  };
+
+  const filteredPlaces = places.filter((place) => `${place.name} ${place.location}`.toLowerCase().includes(query.toLowerCase()));
+  const filteredDrivers = drivers.filter((driver) => `${driver.name} ${driver.vehicleType}`.toLowerCase().includes(query.toLowerCase()));
+
+  return <main className="min-h-screen bg-slate-100/70">
+    <section className="border-b border-slate-200 bg-white"><div className="page-shell py-10"><p className="eyebrow">Operations centre</p><div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h1 className="font-serif text-4xl font-bold">Admin dashboard</h1><p className="mt-2 text-slate-500">Manage Ceylon Explorer&apos;s content and daily operations.</p></div><span className="w-fit rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700">● System operational</span></div></div></section>
+    <div className="page-shell py-8"><div className="mb-8 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">{tabs.map((item) => <button key={item.id} onClick={() => { setTab(item.id); setQuery(''); }} className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold ${tab === item.id ? 'bg-teal-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}><item.icon size={17} /> {item.label}</button>)}</div>
+      {error && <div className="mb-6 flex justify-between rounded-2xl bg-red-50 p-4 text-sm text-red-700"><span>{error}</span><button onClick={() => setError('')}><X size={18} /></button></div>}
+      {loading ? <div className="grid gap-5 md:grid-cols-3">{[1,2,3].map((n) => <div key={n} className="h-36 animate-pulse rounded-3xl bg-slate-200" />)}</div> : <>
+        {tab === 'overview' && <Overview dashboard={dashboard} />}
+        {tab === 'places' && <section><ManagementHeader title="Destination library" count={places.length} query={query} setQuery={setQuery} button="Add place" onAdd={() => openPlace()} /><div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{filteredPlaces.map((place) => <article key={place._id} className="card overflow-hidden"><img src={getImageUrl(place.image)} alt={place.name} className="h-44 w-full object-cover" /><div className="p-5"><h3 className="font-serif text-xl font-bold">{place.name}</h3><p className="mt-1 text-sm text-slate-500">{place.location}</p><div className="mt-4 flex flex-wrap gap-1.5">{place.tags?.map((tag) => <span key={tag} className="rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-700">{tag}</span>)}</div><Actions onEdit={() => openPlace(place)} onDelete={() => remove('places', place)} /></div></article>)}</div><NoResults items={filteredPlaces} /></section>}
+        {tab === 'drivers' && <section><ManagementHeader title="Driver network" count={drivers.length} query={query} setQuery={setQuery} button="Add driver" onAdd={() => openDriver()} /><div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{filteredDrivers.map((driver) => <article key={driver._id} className="card overflow-hidden"><div className="relative"><img src={getImageUrl(driver.image)} alt={driver.name} className="h-48 w-full object-cover" /><span className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-bold ${driver.availability ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>{driver.availability ? 'Active' : 'Unavailable'}</span></div><div className="p-5"><h3 className="font-serif text-xl font-bold">{driver.name}</h3><p className="mt-1 text-sm text-slate-500">{driver.vehicleType} · {driver.phoneNumber}</p><Actions onEdit={() => openDriver(driver)} onDelete={() => remove('drivers', driver)} /></div></article>)}</div><NoResults items={filteredDrivers} /></section>}
+        {tab === 'bookings' && <BookingsTable bookings={bookings} />}
+      </>}
+    </div>
+    {modal?.type === 'place' && <AdminModal title={modal.id ? 'Edit destination' : 'Add destination'} onClose={() => setModal(null)}>{error && <ModalError message={error} />}<form onSubmit={savePlace} className="space-y-4"><FormField label="Place name" value={placeForm.name} onChange={(value) => setPlaceForm({ ...placeForm, name: value })} placeholder="e.g. Nuwara Eliya" /><FormField label="Location" value={placeForm.location} onChange={(value) => setPlaceForm({ ...placeForm, location: value })} placeholder="e.g. Central Province" /><label className="block"><span className="mb-2 block text-sm font-bold">Destination image {modal.id && <span className="font-normal text-slate-400">(optional when editing)</span>}</span>{placeForm.currentImage && !placeForm.image && <img src={getImageUrl(placeForm.currentImage)} alt="Current destination" className="mb-3 h-28 w-full rounded-2xl object-cover" />}<input className="field file:mr-4 file:rounded-full file:border-0 file:bg-teal-50 file:px-3 file:py-2 file:text-xs file:font-bold file:text-teal-700" type="file" accept="image/*" required={!modal.id} onChange={(e) => setPlaceForm({ ...placeForm, image: e.target.files[0] })} /></label><FormField label="Tags" value={placeForm.tags} onChange={(value) => setPlaceForm({ ...placeForm, tags: value })} placeholder="nature, hiking, scenic" hint="Separate tags with commas" /><SubmitButtons saving={saving} onCancel={() => setModal(null)} /></form></AdminModal>}
+    {modal?.type === 'driver' && <AdminModal title={modal.id ? 'Edit driver' : 'Add driver'} onClose={() => setModal(null)}>{error && <ModalError message={error} />}<form onSubmit={saveDriver} className="space-y-4"><FormField label="Full name" value={driverForm.name} onChange={(value) => setDriverForm({ ...driverForm, name: value })} placeholder="Driver name" /><div className="grid gap-4 sm:grid-cols-2"><FormField label="Phone" value={driverForm.phoneNumber} onChange={(value) => setDriverForm({ ...driverForm, phoneNumber: value })} placeholder="+94 77 123 4567" /><FormField label="Vehicle type" value={driverForm.vehicleType} onChange={(value) => setDriverForm({ ...driverForm, vehicleType: value })} placeholder="Family Van" /></div><label className="block"><span className="mb-2 block text-sm font-bold">Profile image {modal.id && <span className="font-normal text-slate-400">(optional when editing)</span>}</span><input className="field file:mr-4 file:rounded-full file:border-0 file:bg-teal-50 file:px-3 file:py-2 file:text-xs file:font-bold file:text-teal-700" type="file" accept="image/*" required={!modal.id} onChange={(e) => setDriverForm({ ...driverForm, image: e.target.files[0] })} /></label><label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4"><input type="checkbox" checked={driverForm.availability} onChange={(e) => setDriverForm({ ...driverForm, availability: e.target.checked })} /><span><b className="block text-sm">Available for bookings</b><span className="text-xs text-slate-500">Customers can see this driver</span></span></label><SubmitButtons saving={saving} onCancel={() => setModal(null)} /></form></AdminModal>}
+  </main>;
+}
+
+function Overview({ dashboard }) {
+  const stats = [{ label: 'Destinations', value: dashboard?.counts.places || 0, icon: Map, color: 'bg-blue-50 text-blue-700' }, { label: 'Active drivers', value: dashboard?.counts.availableDrivers || 0, icon: Car, color: 'bg-emerald-50 text-emerald-700' }, { label: 'Travellers', value: dashboard?.counts.users || 0, icon: Users, color: 'bg-violet-50 text-violet-700' }, { label: 'Confirmed trips', value: dashboard?.counts.activeBookings || 0, icon: CalendarDays, color: 'bg-amber-50 text-amber-700' }];
+  return <div className="space-y-8"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map((item) => <article key={item.label} className="card flex items-center gap-4 p-5"><span className={`grid h-12 w-12 place-items-center rounded-2xl ${item.color}`}><item.icon size={22} /></span><div><p className="text-3xl font-bold">{item.value}</p><p className="text-sm text-slate-500">{item.label}</p></div></article>)}</div><section className="card p-6"><div className="mb-5"><p className="eyebrow">Schedule</p><h2 className="mt-2 font-serif text-2xl font-bold">Upcoming journeys</h2></div>{dashboard?.upcoming?.length ? <div className="divide-y divide-slate-100">{dashboard.upcoming.map((booking) => <div key={booking._id} className="grid gap-2 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center"><div><b>{booking.destination}</b><p className="text-sm text-slate-500">{booking.user?.name}</p></div><p className="text-sm text-slate-600">{booking.driver?.name}</p><time className="text-sm font-bold text-teal-700">{new Date(booking.tripDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}</time></div>)}</div> : <p className="py-8 text-center text-slate-500">No upcoming bookings yet.</p>}</section></div>;
+}
+
+function ManagementHeader({ title, count, query, setQuery, button, onAdd }) { return <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center"><div><h2 className="font-serif text-3xl font-bold">{title}</h2><p className="text-sm text-slate-500">{count} total records</p></div><div className="flex flex-col gap-3 sm:flex-row"><label className="relative"><Search className="absolute left-4 top-3 text-slate-400" size={18} /><input className="field !py-2.5 !pl-11" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search records" /></label><button onClick={onAdd} className="primary-button !py-2.5"><Plus size={17} /> {button}</button></div></div>; }
+function Actions({ onEdit, onDelete }) { return <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4"><button onClick={onEdit} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50"><Edit3 size={15} /> Edit</button><button onClick={onDelete} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50"><Trash2 size={15} /> Delete</button></div>; }
+function NoResults({ items }) { return !items.length && <div className="card py-14 text-center text-slate-500">No matching records found.</div>; }
+function AdminModal({ title, onClose, children }) { return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true"><div className="my-8 w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8"><div className="mb-6 flex items-center justify-between"><h2 className="font-serif text-3xl font-bold">{title}</h2><button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-slate-100" aria-label="Close"><X size={18} /></button></div>{children}</div></div>; }
+function FormField({ label, value, onChange, placeholder, type = 'text', hint }) { return <label className="block"><span className="mb-2 block text-sm font-bold">{label}</span><input className="field" type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required />{hint && <small className="mt-1 block text-slate-400">{hint}</small>}</label>; }
+function ModalError({ message }) { return <p className="mb-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700" role="alert">{message}</p>; }
+function SubmitButtons({ saving, onCancel }) { return <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end"><button type="button" onClick={onCancel} className="secondary-button">Cancel</button><button disabled={saving} className="primary-button">{saving ? 'Saving...' : 'Save changes'}</button></div>; }
+function BookingsTable({ bookings }) { return <section><div className="mb-6"><h2 className="font-serif text-3xl font-bold">All bookings</h2><p className="text-sm text-slate-500">{bookings.length} total records</p></div><div className="card overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">Traveller</th><th className="p-4">Destination</th><th className="p-4">Driver</th><th className="p-4">Date</th><th className="p-4">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{bookings.map((booking) => <tr key={booking._id}><td className="p-4"><b className="block">{booking.user?.name || booking.customerName}</b><span className="text-xs text-slate-500">{booking.user?.email}</span></td><td className="p-4 font-medium">{booking.destination}</td><td className="p-4">{booking.driver?.name || 'Deleted driver'}</td><td className="p-4">{new Date(booking.tripDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}</td><td className="p-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${booking.status === 'cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>{booking.status}</span></td></tr>)}</tbody></table>{!bookings.length && <p className="p-12 text-center text-slate-500">No bookings yet.</p>}</div></section>; }

@@ -12,17 +12,14 @@ const storage = multer.diskStorage({
   }
 });
 
-// Filter file types (optional)
-// const fileFilter = (req, file, cb) => {
-//   if (file.mimetype.startsWith('image/')) {
-//     cb(null, true);
-//   } else {
-//     cb(new Error('Only images are allowed'), false);
-//   }
-// };
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only images are allowed'), false);
+  }
+};
 
-// const upload = multer({ storage, fileFilter });
-
-const upload = multer({ storage });
+const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
 export default upload;

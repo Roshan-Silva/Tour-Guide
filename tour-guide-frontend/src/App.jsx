@@ -4,17 +4,26 @@ import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import Drivers from './pages/Drivers';
 import Navbar from './components/Navbar';
+import Bookings from './pages/Bookings';
+import Footer from './components/Footer';
+import Admin from './pages/Admin';
+import AdminRoute from './components/AdminRoute';
 
 function App() {
   return (
     <Router>
       <Navbar />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<SignIn />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/drivers" element={<Drivers />} />
-      </Routes>
+      <div className="min-h-[calc(100vh-5rem)]">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/drivers" element={<Drivers />} />
+          <Route path="/bookings" element={<Bookings />} />
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+        </Routes>
+      </div>
+      <Footer />
     </Router>
   );
 }

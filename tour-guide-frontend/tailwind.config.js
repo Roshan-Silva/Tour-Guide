@@ -6,7 +6,15 @@ export default {
   ],
 
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
+      },
+      colors: {
+        ink: '#17201c',
+        sand: '#f3eee3',
+      },
+    },
   },
   plugins: [],
 }
