@@ -1,95 +1,89 @@
-import Driver from '../models/Driver.js';
 import Booking from '../models/Booking.js';
-import { normalizeTripDate } from '../utils/bookingDate.js';
+import Driver from '../models/Driver.js';
+import { BLOCKING_STATUSES } from '../services/bookingRules.js';
+import { validateDateRange } from '../utils/dateRange.js';
 
-// Add a new driver
+const list = (value) => typeof value === 'string' ? value.split(',').map((item) => item.trim()).filter(Boolean) : value || [];
+const bool = (value, fallback = true) => value === undefined ? fallback : value === true || value === 'true';
+
+const driverPayload = (body, image, defaults = {}) => ({
+  fullName: body.fullName?.trim() || body.name?.trim(),
+  name: body.fullName?.trim() || body.name?.trim(),
+  phoneNumber: body.phoneNumber?.trim(),
+  profileImage: image,
+  image,
+  bio: body.bio?.trim() || '',
+  languages: list(body.languages),
+  yearsOfExperience: Number(body.yearsOfExperience || 0),
+  serviceAreas: list(body.serviceAreas),
+  dailyRate: Number(body.dailyRate || 0),
+  vehicleType: body.vehicleType?.trim(),
+  vehicleModel: body.vehicleModel?.trim() || '',
+  vehicleCapacity: Number(body.vehicleCapacity || 4),
+  vehicleImage: body.vehicleImage?.trim() || '',
+  availability: bool(body.availability, defaults.availability),
+  verificationStatus: body.verificationStatus || defaults.verificationStatus,
+});
+
 export const addDriver = async (req, res) => {
-  const { name, phoneNumber, vehicleType, availability } = req.body;
-  const image = req.file ? req.file.filename : null; // Get uploaded image name
-
   try {
-    if (!name?.trim() || !phoneNumber?.trim() || !vehicleType?.trim() || !image) {
-      return res.status(400).json({ message: 'Name, phone number, vehicle type and image are required' });
-    }
-    const driver = new Driver({ name, phoneNumber, vehicleType, image, availability });
-    await driver.save();
+    const payload = driverPayload(req.body, req.file?.filename, { availability: true, verificationStatus: 'verified' });
+    if (!payload.fullName || !payload.phoneNumber || !payload.vehicleType || !payload.profileImage) return res.status(400).json({ message: 'Name, phone number, vehicle type and image are required' });
+    const driver = await Driver.create(payload);
     res.status(201).json(driver);
-  } catch (err) {
-    res.status(500).json({ message: 'Error adding driver', error: err.message });
-  }
-}
-
-// Get all drivers
-export const getDrivers = async (req, res) => {
-
-    const { vehicleType, tripDate } = req.query;
-
-    let filter = {availability: true};
-    if (vehicleType) {
-        filter.vehicleType = vehicleType;
-    }
-
-  try {
-    if (tripDate) {
-      let date;
-      try {
-        date = normalizeTripDate(tripDate);
-      } catch (dateError) {
-        return res.status(400).json({ message: dateError.message });
-      }
-      const bookedDriverIds = await Booking.distinct('driver', { tripDate: date, status: 'confirmed' });
-      filter._id = { $nin: bookedDriverIds };
-    }
-    const drivers = await Driver.find(filter);
-    res.status(200).json(drivers);
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching drivers', error: err.message });
-  }
-}
-
-
-export const getAllDriversForAdmin = async (req, res) => {
-  try {
-    const drivers = await Driver.find().sort({ createdAt: -1 });
-    res.status(200).json(drivers);
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching drivers', error: err.message });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Error adding driver' });
   }
 };
 
-export const updateDriver = async (req, res) => {
-  const { name, phoneNumber, vehicleType, availability } = req.body;
-  if (!name?.trim() || !phoneNumber?.trim() || !vehicleType?.trim()) {
-    return res.status(400).json({ message: 'Name, phone number and vehicle type are required' });
-  }
+export const getDrivers = async (req, res) => {
+  const { vehicleType, startDate: startValue, endDate: endValue } = req.query;
+  const filter = { availability: true, verificationStatus: 'verified' };
+  if (vehicleType) filter.vehicleType = vehicleType;
   try {
-    const changes = {
-      name: name.trim(),
-      phoneNumber: phoneNumber.trim(),
-      vehicleType: vehicleType.trim(),
-      availability: availability === true || availability === 'true',
-    };
-    if (req.file) changes.image = req.file.filename;
-    const driver = await Driver.findByIdAndUpdate(req.params.id, changes, { new: true, runValidators: true });
-    if (!driver) return res.status(404).json({ message: 'Driver not found' });
-    res.status(200).json(driver);
-  } catch (err) {
-    if (err?.name === 'CastError') return res.status(400).json({ message: 'Invalid driver ID' });
-    res.status(500).json({ message: 'Error updating driver', error: err.message });
+    if (startValue || endValue) {
+      if (!startValue || !endValue) return res.status(400).json({ message: 'Both startDate and endDate are required' });
+      let range;
+      try { range = validateDateRange(startValue, endValue); }
+      catch (error) { return res.status(400).json({ message: error.message }); }
+      const bookedIds = await Booking.distinct('driver', {
+        status: { $in: BLOCKING_STATUSES }, startDate: { $lte: range.endDate }, endDate: { $gte: range.startDate },
+      });
+      filter._id = { $nin: bookedIds };
+    }
+    const drivers = await Driver.find(filter).sort({ averageRating: -1, fullName: 1 });
+    res.json(drivers);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching drivers' });
+  }
+};
+
+export const getAllDriversForAdmin = async (req, res) => {
+  try { res.json(await Driver.find().populate('user', 'name email role').sort({ createdAt: -1 })); }
+  catch (error) { res.status(500).json({ message: 'Error fetching drivers' }); }
+};
+
+export const updateDriver = async (req, res) => {
+  try {
+    const current = await Driver.findById(req.params.id);
+    if (!current) return res.status(404).json({ message: 'Driver not found' });
+    const payload = driverPayload(req.body, req.file?.filename || current.profileImage || current.image, {
+      availability: current.availability, verificationStatus: current.verificationStatus,
+    });
+    const driver = await Driver.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
+    res.json(driver);
+  } catch (error) {
+    res.status(error.name === 'CastError' ? 400 : 400).json({ message: error.name === 'CastError' ? 'Invalid driver ID' : error.message });
   }
 };
 
 export const deleteDriver = async (req, res) => {
   try {
-    const activeBookings = await Booking.countDocuments({ driver: req.params.id, status: 'confirmed' });
-    if (activeBookings > 0) {
-      return res.status(409).json({ message: 'Cancel this driver’s active bookings before deletion' });
-    }
+    if (await Booking.exists({ driver: req.params.id, status: { $in: BLOCKING_STATUSES } })) return res.status(409).json({ message: 'Resolve this driver’s active bookings before deletion' });
     const driver = await Driver.findByIdAndDelete(req.params.id);
     if (!driver) return res.status(404).json({ message: 'Driver not found' });
-    res.status(200).json({ message: 'Driver deleted' });
-  } catch (err) {
-    if (err?.name === 'CastError') return res.status(400).json({ message: 'Invalid driver ID' });
-    res.status(500).json({ message: 'Error deleting driver', error: err.message });
+    res.json({ message: 'Driver deleted' });
+  } catch (error) {
+    res.status(error.name === 'CastError' ? 400 : 500).json({ message: error.name === 'CastError' ? 'Invalid driver ID' : 'Error deleting driver' });
   }
 };

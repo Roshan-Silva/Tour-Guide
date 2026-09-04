@@ -1,93 +1,70 @@
-import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
+import mongoose from 'mongoose';
+import Driver from '../models/Driver.js';
+import User from '../models/User.js';
 
 const getJwtSecret = () => {
-    if (!process.env.JWT_SECRET) {
-        throw new Error('JWT_SECRET is not set in the environment variables');
-    }
-    return process.env.JWT_SECRET;
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set in the environment variables');
+  return process.env.JWT_SECRET;
 };
 
-export const registerUser = async (req, res) =>{
-    const { name, email, password, confirmPassword } = req.body;
-    try {
-        if (!name?.trim() || !email?.trim() || !password) {
-            return res.status(400).json({ message: 'Name, email and password are required' });
-        }
-        if (password.length < 8) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters' });
-        }
-        if (confirmPassword !== undefined && password !== confirmPassword) {
-            return res.status(400).json({ message: 'Passwords do not match' });
-        }
-        const normalizedEmail = email.trim().toLowerCase();
-        // Check if user already exists
-        const existing = await User.findOne({ email: normalizedEmail });
-        if(existing) {
-            return res.status(400).json({ message: 'User already exists' });
-        }
+const sessionPayload = (user) => ({
+  token: jwt.sign({ id: user._id, role: user.role }, getJwtSecret(), { expiresIn: '2d' }),
+  user: { id: user._id, name: user.name, email: user.email, role: user.role },
+});
 
-        // Hash the password
-        const hashedPassword = await bcrypt.hash(password, 10);
+export const registerUser = async (req, res) => {
+  const { name, email, password, confirmPassword } = req.body;
+  try {
+    if (!name?.trim() || !email?.trim() || !password) return res.status(400).json({ message: 'Name, email and password are required' });
+    if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    if (confirmPassword !== undefined && password !== confirmPassword) return res.status(400).json({ message: 'Passwords do not match' });
+    const normalizedEmail = email.trim().toLowerCase();
+    if (await User.findOne({ email: normalizedEmail })) return res.status(400).json({ message: 'User already exists' });
+    const user = await User.create({ name: name.trim(), email: normalizedEmail, password: await bcrypt.hash(password, 10), role: 'traveler' });
+    res.status(201).json({ message: 'User registered successfully', ...sessionPayload(user) });
+  } catch (error) {
+    res.status(500).json({ message: 'Registration failed' });
+  }
+};
 
-        // Create a new user
-        const user = new User({
-            name: name.trim(),
-            email: normalizedEmail,
-            password: hashedPassword,
-        });
+export const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    if (!email?.trim() || !password) return res.status(400).json({ message: 'Email and password are required' });
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ message: 'Invalid credentials' });
+    res.json({ message: 'Login successful', ...sessionPayload(user) });
+  } catch (error) {
+    res.status(500).json({ message: 'Login failed' });
+  }
+};
 
-        // Save the user to the database
-        await user.save();
-
-        const token = jwt.sign({ id: user._id, role: user.role }, getJwtSecret(), { expiresIn: '2d' });
-        res.status(201).json({
-            message: 'User registered successfully',
-            token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role },
-        });
-    } catch (err) {
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
-}
-
-    export const loginUser = async (req, res) =>{
-
-        const { email, password} = req.body;
-        try {
-            if (!email?.trim() || !password) {
-                return res.status(400).json({ message: 'Email and password are required' });
-            }
-            // Find the user by email
-            const user = await User.findOne({ email: email.trim().toLowerCase() });
-            if (!user) {
-                return res.status(400).json({ message: 'user not found' });
-            }
-
-            // Check the password
-            const valid = await bcrypt.compare(password, user.password);
-            if (!valid) {
-                return res.status(400).json({ message: 'Invalid credentials' });
-            }
-
-            // Create a JWT token
-            const token = jwt.sign({ id: user._id, role: user.role }, getJwtSecret(), { expiresIn: '2d' });
-
-            res.status(200).json({ 
-                message: 'Login successful', 
-                token, 
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                } 
-            });
-        } catch (err) {
-            res.status(500).json({ message: 'Login failed', error: err.message });
-        }
-
-    }
-
+export const registerDriver = async (req, res) => {
+  const { name, email, password, confirmPassword, phoneNumber, vehicleType, vehicleModel, vehicleCapacity, dailyRate, languages = '', serviceAreas = '', yearsOfExperience = 0, bio = '' } = req.body;
+  if (!name?.trim() || !email?.trim() || !phoneNumber?.trim() || !vehicleType?.trim() || !req.file) return res.status(400).json({ message: 'Name, email, phone, vehicle type and profile image are required' });
+  if (!password || password.length < 8 || password !== confirmPassword) return res.status(400).json({ message: password !== confirmPassword ? 'Passwords do not match' : 'Password must be at least 8 characters' });
+  const session = await mongoose.startSession();
+  try {
+    let user;
+    let driver;
+    await session.withTransaction(async () => {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (await User.findOne({ email: normalizedEmail }).session(session)) throw new Error('User already exists');
+      [user] = await User.create([{ name: name.trim(), email: normalizedEmail, password: await bcrypt.hash(password, 10), role: 'driver' }], { session });
+      [driver] = await Driver.create([{
+        user: user._id, fullName: name.trim(), name: name.trim(), phoneNumber: phoneNumber.trim(), profileImage: req.file.filename, image: req.file.filename,
+        vehicleType: vehicleType.trim(), vehicleModel: vehicleModel?.trim() || '', vehicleCapacity: Number(vehicleCapacity || 4), dailyRate: Number(dailyRate || 0),
+        yearsOfExperience: Number(yearsOfExperience || 0), bio: bio.trim(), languages: languages.split(',').map((value) => value.trim()).filter(Boolean),
+        serviceAreas: serviceAreas.split(',').map((value) => value.trim()).filter(Boolean), availability: false, verificationStatus: 'pending',
+      }], { session });
+    });
+    res.status(201).json({ message: 'Driver application submitted for verification', ...sessionPayload(user), driver });
+  } catch (error) {
+    const isKnown = error.message === 'User already exists' || error.name === 'ValidationError';
+    res.status(isKnown ? 400 : 500).json({ message: isKnown ? error.message : 'Driver registration failed' });
+  } finally {
+    await session.endSession();
+  }
+};

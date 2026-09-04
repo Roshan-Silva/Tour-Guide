@@ -11,6 +11,8 @@ import driverRoutes from './routes/driverRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import driverPortalRoutes from './routes/driverPortalRoutes.js';
+import BookingLock from './models/BookingLock.js';
 
 dotenv.config();
 
@@ -36,6 +38,7 @@ app.use('/api/places', placeRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/driver', driverPortalRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ message: 'API route not found' }));
 
@@ -49,7 +52,8 @@ if (!process.env.MONGODB_URI) {
 }
 
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
+    await BookingLock.init();
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
     });

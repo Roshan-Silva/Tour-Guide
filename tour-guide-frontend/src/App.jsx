@@ -8,6 +8,9 @@ import Bookings from './pages/Bookings';
 import Footer from './components/Footer';
 import Admin from './pages/Admin';
 import AdminRoute from './components/AdminRoute';
+import DriverDashboard from './pages/DriverDashboard';
+import DriverRoute from './components/DriverRoute';
+import DriverApply from './pages/DriverApply';
 
 function App() {
   return (
@@ -21,6 +24,10 @@ function App() {
           <Route path="/drivers" element={<Drivers />} />
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          <Route path="/driver" element={<DriverRoute><DriverDashboard view="overview" /></DriverRoute>} />
+          <Route path="/driver/bookings" element={<DriverRoute><DriverDashboard view="bookings" /></DriverRoute>} />
+          <Route path="/driver/profile" element={<DriverRoute><DriverDashboard view="profile" /></DriverRoute>} />
+          <Route path="/driver/apply" element={<DriverApply />} />
         </Routes>
       </div>
       <Footer />

@@ -13,11 +13,11 @@ export const getDashboard = async (req, res) => {
       Driver.countDocuments({ availability: true }),
       User.countDocuments({ role: 'traveler' }),
       Booking.countDocuments(),
-      Booking.countDocuments({ status: 'confirmed' }),
-      Booking.find({ status: 'confirmed', tripDate: { $gte: today } })
-        .populate('driver', 'name vehicleType')
+      Booking.countDocuments({ status: { $in: ['pending', 'confirmed'] } }),
+      Booking.find({ status: { $in: ['pending', 'confirmed'] }, startDate: { $gte: today } })
+        .populate('driver', 'fullName name vehicleType')
         .populate('user', 'name email')
-        .sort({ tripDate: 1 })
+        .sort({ startDate: 1 })
         .limit(6),
     ]);
     res.json({ counts: { places, drivers, availableDrivers, users, bookings, activeBookings }, upcoming });
@@ -29,7 +29,7 @@ export const getDashboard = async (req, res) => {
 export const getAllBookings = async (req, res) => {
   try {
     const bookings = await Booking.find()
-      .populate('driver', 'name vehicleType')
+      .populate('driver', 'fullName name vehicleType')
       .populate('user', 'name email')
       .sort({ createdAt: -1 });
     res.json(bookings);
