@@ -16,6 +16,8 @@ import DestinationDetail from './pages/DestinationDetail';
 import TripPlanner from './pages/TripPlanner';
 import SavedPlaces from './pages/SavedPlaces';
 import DriverDetail from './pages/DriverDetail';
+import TravelerDashboard from './pages/TravelerDashboard';
+import TravelerRoute from './components/TravelerRoute';
 
 function App() {
   return (
@@ -33,6 +35,9 @@ function App() {
           <Route path="/trip-planner" element={<TripPlanner />} />
           <Route path="/saved-places" element={<SavedPlaces />} />
           <Route path="/bookings" element={<Bookings />} />
+          <Route path="/traveler" element={<TravelerRoute><TravelerDashboard view="overview" /></TravelerRoute>} />
+          <Route path="/traveler/reviews" element={<TravelerRoute><TravelerDashboard view="reviews" /></TravelerRoute>} />
+          <Route path="/traveler/profile" element={<TravelerRoute><TravelerDashboard view="profile" /></TravelerRoute>} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/driver" element={<DriverRoute><DriverDashboard view="overview" /></DriverRoute>} />
           <Route path="/driver/bookings" element={<DriverRoute><DriverDashboard view="bookings" /></DriverRoute>} />

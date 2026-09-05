@@ -37,7 +37,7 @@ export const buildItinerary = ({ places, startDate, numberOfDays, interests, sta
       const date = new Date(startDate); date.setUTCDate(date.getUTCDate() + days.length);
       days.push({
         dayNumber: days.length + 1, date, destination: candidate.place._id,
-        destinationName: candidate.place.name, activities: candidate.place.activities?.slice(0, 3) || [],
+        destinationName: candidate.place.name, image: candidate.place.image, slug: candidate.place.slug, activities: candidate.place.activities?.slice(0, 3) || [],
         notes: candidate.matches.length ? `Recommended for ${candidate.matches.join(', ')}` : 'A well-rounded Sri Lankan experience',
       });
     }

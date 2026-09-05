@@ -31,7 +31,7 @@ export default function Navbar() {
           <NavLink to="/destinations" className={linkClass}>Destinations</NavLink>
           <NavLink to="/trip-planner" className={linkClass}>Trip planner</NavLink>
           <NavLink to="/drivers" className={linkClass}>Drivers</NavLink>
-          {user?.role === 'traveler' && <><NavLink to="/saved-places" className={linkClass}>Saved</NavLink><NavLink to="/bookings" className={linkClass}>My trips</NavLink></>}
+          {user?.role === 'traveler' && <NavLink to="/traveler" className={linkClass}>My dashboard</NavLink>}
           {user?.role === 'driver' && <NavLink to="/driver" className={linkClass}>Driver portal</NavLink>}
           {user?.role === 'admin' && <NavLink to="/admin" className={linkClass}>Admin</NavLink>}
         </nav>
@@ -45,7 +45,7 @@ export default function Navbar() {
         <NavLink to="/destinations" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">Destinations</NavLink>
         <NavLink to="/trip-planner" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">Trip planner</NavLink>
         <NavLink to="/drivers" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">Drivers</NavLink>
-        {user?.role === 'traveler' && <><NavLink to="/saved-places" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">Saved places</NavLink><NavLink to="/bookings" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">My trips</NavLink></>}
+        {user?.role === 'traveler' && <NavLink to="/traveler" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">My dashboard</NavLink>}
         {user?.role === 'driver' && <NavLink to="/driver" onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 font-semibold">Driver portal</NavLink>}
         {user?.role === 'admin' && <NavLink to="/admin" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-4 py-3 font-semibold"><LayoutDashboard size={18} /> Admin dashboard</NavLink>}
         {user ? <button onClick={logout} className="w-full rounded-xl px-4 py-3 text-left font-semibold text-red-700">Log out</button> : <div className="grid grid-cols-2 gap-3 pt-3"><Link onClick={() => setOpen(false)} to="/login" className="secondary-button">Sign in</Link><Link onClick={() => setOpen(false)} to="/signup" className="primary-button">Join</Link></div>}
