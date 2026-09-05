@@ -11,6 +11,11 @@ import AdminRoute from './components/AdminRoute';
 import DriverDashboard from './pages/DriverDashboard';
 import DriverRoute from './components/DriverRoute';
 import DriverApply from './pages/DriverApply';
+import Destinations from './pages/Destinations';
+import DestinationDetail from './pages/DestinationDetail';
+import TripPlanner from './pages/TripPlanner';
+import SavedPlaces from './pages/SavedPlaces';
+import DriverDetail from './pages/DriverDetail';
 
 function App() {
   return (
@@ -22,6 +27,11 @@ function App() {
           <Route path="/login" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/drivers" element={<Drivers />} />
+          <Route path="/drivers/:id" element={<DriverDetail />} />
+          <Route path="/destinations" element={<Destinations />} />
+          <Route path="/destinations/:slug" element={<DestinationDetail />} />
+          <Route path="/trip-planner" element={<TripPlanner />} />
+          <Route path="/saved-places" element={<SavedPlaces />} />
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/driver" element={<DriverRoute><DriverDashboard view="overview" /></DriverRoute>} />

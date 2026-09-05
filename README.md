@@ -38,12 +38,13 @@ cd tour-guide-backend
 Copy-Item .env.example .env
 npm install
 npm run migrate:phase1
+npm run migrate:phase2
 npm run seed
 npm run create-admin
 npm run dev
 ```
 
-Update `.env` with your Atlas connection string, secure JWT secret, and `SEED_DEMO_PASSWORD` first. Add your current IP address in Atlas Network Access. Existing databases created before Phase 1 must run `npm run migrate:phase1` once before starting the upgraded app.
+Update `.env` with your Atlas connection string, secure JWT secret, and `SEED_DEMO_PASSWORD` first. Add your current IP address in Atlas Network Access. Existing databases must run the applicable Phase 1 and Phase 2 migrations in order before starting the upgraded app.
 
 To create the admin account, also set `ADMIN_NAME`, `ADMIN_EMAIL`, and an `ADMIN_PASSWORD` of at least 12 characters. Run `npm run create-admin`, then sign in with those credentials. Admin privileges cannot be obtained through public registration.
 
@@ -67,6 +68,7 @@ Open `http://localhost:5173`.
 | Backend | `npm run seed` | Add demo destinations and drivers |
 | Backend | `npm run create-admin` | Create or update the configured admin account |
 | Backend | `npm run migrate:phase1` | Upgrade legacy drivers/bookings and replace the old date index |
+| Backend | `npm run migrate:phase2` | Add slugs and tourism defaults to legacy destinations |
 | Frontend | `npm run dev` | Start the Vite development server |
 | Frontend | `npm run lint` | Run ESLint |
 | Frontend | `npm run build` | Create a production build |
@@ -78,6 +80,15 @@ Open `http://localhost:5173`.
 | POST | `/api/auth/register` | Create an account |
 | POST | `/api/auth/login` | Sign in and receive a JWT |
 | GET | `/api/places` | List destinations |
+| GET | `/api/places/:slug` | Destination detail and related places |
+| POST | `/api/trip-planner/generate` | Generate an explainable itinerary |
+| POST | `/api/trip-planner/save` | Save a traveler itinerary |
+| GET | `/api/trip-planner/mine` | List the traveler’s itineraries |
+| GET | `/api/favorites` | List the traveler’s saved places |
+| POST/DELETE | `/api/favorites/:destinationId` | Save or unsave a destination |
+| POST | `/api/reviews` | Review a completed owned booking |
+| PUT/DELETE | `/api/reviews/:id` | Manage an owned review |
+| GET | `/api/drivers/:id` | Public driver profile and reviews |
 | GET | `/api/drivers?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` | Find drivers available for an entire date range |
 | POST | `/api/auth/register-driver` | Submit a linked driver application |
 | POST | `/api/bookings/add` | Traveler creates a pending multi-day request |
@@ -104,6 +115,14 @@ pending or confirmed → cancelled
 New requests are `pending`. Pending and confirmed bookings block the driver for every inclusive date in the range. Rejected, cancelled, and completed records release their date locks. Drivers can only act on bookings assigned to their own linked profile; travelers can only view or cancel their own bookings. Invalid reverse transitions are rejected by centralized business rules.
 
 The backend snapshots `dailyRateAtBooking`, calculates inclusive `numberOfDays`, and stores `estimatedTotal`. Client-supplied totals are ignored.
+
+## Smart trip planning
+
+The `/trip-planner` experience ranks active destinations by overlap between traveler interests and destination categories/tags. It adds a small starting-area relevance bonus, favors destinations with curated activities, respects each destination’s recommended duration, and avoids repeating a destination until the available ranked set has been used. The result explicitly explains why it was generated; no external AI service is used.
+
+Travelers can save the generated day-by-day itinerary, then search for a driver with its dates, party size, route, and preferred vehicle prefilled. A booking can reference only an itinerary owned by the authenticated traveler.
+
+Reviews require an authenticated traveler, an owned completed booking, a whole-number rating from 1–5, and no existing review for that booking. Create, update, and delete operations recalculate the driver’s average and review count.
 
 ## Security notes
 

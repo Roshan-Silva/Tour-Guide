@@ -12,7 +12,7 @@ export const findConflictingBooking = ({ driverId, startDate, endDate, excludeBo
   return session ? query.session(session) : query;
 };
 
-export const createBooking = async ({ userId, customerName, driverId, destination, startDate: startValue, endDate: endValue, partySize = 1, notes = '' }) => {
+export const createBooking = async ({ userId, customerName, driverId, destination, startDate: startValue, endDate: endValue, partySize = 1, notes = '', itineraryId }) => {
   const { startDate, endDate, numberOfDays } = validateDateRange(startValue, endValue);
   const travelers = Number(partySize);
   if (!Number.isInteger(travelers) || travelers < 1 || travelers > 20) throw new Error('Party size must be between 1 and 20');
@@ -32,7 +32,7 @@ export const createBooking = async ({ userId, customerName, driverId, destinatio
       [createdBooking] = await Booking.create([{
         customerName: customerName.trim(), user: userId, driver: driverId, destination: destination.trim(),
         startDate, endDate, partySize: travelers, notes: notes.trim(), status: 'pending',
-        dailyRateAtBooking, numberOfDays, estimatedTotal,
+        dailyRateAtBooking, numberOfDays, estimatedTotal, itinerary: itineraryId || null,
       }], { session });
       await BookingLock.insertMany(enumerateDates(startDate, endDate).map((date) => ({ driver: driverId, date, booking: createdBooking._id })), { session });
     });

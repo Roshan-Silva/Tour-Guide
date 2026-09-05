@@ -9,7 +9,8 @@
     "dev": "nodemon server.js",
     "seed": "node scripts/seed.js",
     "create-admin": "node scripts/createAdmin.js",
-    "migrate:phase1": "node scripts/migratePhase1.js"
+    "migrate:phase1": "node scripts/migratePhase1.js",
+    "migrate:phase2": "node scripts/migratePhase2.js"
   },
   "keywords": [],
   "author": "",

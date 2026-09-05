@@ -13,6 +13,12 @@ import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import driverPortalRoutes from './routes/driverPortalRoutes.js';
 import BookingLock from './models/BookingLock.js';
+import tripPlannerRoutes from './routes/tripPlannerRoutes.js';
+import favoriteRoutes from './routes/favoriteRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
+import Favorite from './models/Favorite.js';
+import Review from './models/Review.js';
+import Place from './models/Place.js';
 
 dotenv.config();
 
@@ -39,6 +45,9 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/driver', driverPortalRoutes);
+app.use('/api/trip-planner', tripPlannerRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ message: 'API route not found' }));
 
@@ -53,7 +62,7 @@ if (!process.env.MONGODB_URI) {
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
-    await BookingLock.init();
+    await Promise.all([BookingLock.init(), Favorite.init(), Review.init(), Place.init()]);
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
     });

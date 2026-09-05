@@ -2,6 +2,8 @@ import Booking from '../models/Booking.js';
 import { assertBookingActor } from '../services/bookingRules.js';
 import { createBooking, transitionBooking } from '../services/bookingService.js';
 import User from '../models/User.js';
+import TripPlan from '../models/TripPlan.js';
+import Review from '../models/Review.js';
 
 const bookingError = (res, error, fallback = 'Booking request failed') => {
   const knownConflict = error.message.includes('unavailable');
@@ -13,6 +15,7 @@ export const addBooking = async (req, res) => {
   try {
     const traveler = await User.findById(req.user).select('name');
     if (!traveler) return res.status(401).json({ message: 'Traveler account not found' });
+    if (req.body.itineraryId && !await TripPlan.exists({ _id: req.body.itineraryId, user: req.user })) return res.status(403).json({ message: 'You cannot book with another traveler’s itinerary' });
     const booking = await createBooking({ ...req.body, customerName: traveler.name, userId: req.user });
     res.status(201).json(booking);
   } catch (error) {
@@ -25,7 +28,9 @@ export const getMyBookings = async (req, res) => {
     const bookings = await Booking.find({ user: req.user })
       .populate('driver', 'fullName name phoneNumber vehicleType vehicleModel profileImage image dailyRate')
       .sort({ startDate: 1 });
-    res.status(200).json(bookings);
+    const reviews = await Review.find({ booking: { $in: bookings.map((booking) => booking._id) }, traveler: req.user });
+    const byBooking = new Map(reviews.map((review) => [String(review.booking), review]));
+    res.status(200).json(bookings.map((booking) => ({ ...booking.toObject(), review: byBooking.get(String(booking._id)) || null })));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching bookings' });
   }

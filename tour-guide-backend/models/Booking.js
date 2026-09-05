@@ -15,6 +15,7 @@ const bookingSchema = new mongoose.Schema({
   },
   driver: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', required: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  itinerary: { type: mongoose.Schema.Types.ObjectId, ref: 'TripPlan', default: null },
   dailyRateAtBooking: { type: Number, required: true, min: 0 },
   numberOfDays: { type: Number, required: true, min: 1 },
   estimatedTotal: { type: Number, required: true, min: 0 },

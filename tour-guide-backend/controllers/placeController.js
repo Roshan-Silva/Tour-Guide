@@ -1,75 +1,49 @@
 import Place from '../models/Place.js';
 
-// add a new place
+const list = (value) => (Array.isArray(value) ? value : String(value || '').split(',')).map((item) => item.trim()).filter(Boolean);
+export const makeSlug = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const optionalNumber = (value) => value === '' || value === undefined ? undefined : Number(value);
+const placePayload = (body, image, current = {}) => ({
+  name: body.name?.trim(), slug: makeSlug(body.slug || body.name || ''), image: image || current.image,
+  additionalImages: list(body.additionalImages), location: body.location?.trim(), district: body.district?.trim() || '', province: body.province?.trim() || '',
+  latitude: optionalNumber(body.latitude), longitude: optionalNumber(body.longitude), shortDescription: body.shortDescription?.trim() || '', description: body.description?.trim() || '',
+  tags: list(body.tags).map((x) => x.toLowerCase()), categories: list(body.categories).map((x) => x.toLowerCase()), recommendedDuration: Number(body.recommendedDuration || 1),
+  bestTimeToVisit: body.bestTimeToVisit?.trim() || 'Year-round', activities: list(body.activities), isActive: body.isActive === undefined ? (current.isActive ?? true) : body.isActive === true || body.isActive === 'true',
+});
+
 export const addPlace = async (req, res) => {
-  const { name, location } = req.body;
-  const image = req.file?.filename;
-  const tags = typeof req.body.tags === 'string'
-    ? req.body.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
-    : req.body.tags;
-
   try {
-    if (!name?.trim() || !image || !location?.trim()) {
-      return res.status(400).json({ message: 'Name, image and location are required' });
-    }
-    const place = new Place({ name: name.trim(), image, location: location.trim(), tags });
-    await place.save();
-    res.status(201).json(place);
-  } catch (error) {
-    res.status(500).json({ message: 'Error adding place', error });
-  }
-}
-
-// get places
-export const getPlaces = async (req, res) => {
-  
-    const { tag } = req.query;
-
-    let filter = {};
-    if (tag) {
-        filter.tags = tag;
-    }
-
-    try {
-    const places = await Place.find(filter);
-    res.status(200).json(places);
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching places', error: err.message });
-  }
-}
-
-
-export const updatePlace = async (req, res) => {
-  const { name, location } = req.body;
-  const tags = typeof req.body.tags === 'string'
-    ? req.body.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
-    : req.body.tags;
-  if (!name?.trim() || !location?.trim()) {
-    return res.status(400).json({ message: 'Name and location are required' });
-  }
-  try {
-    const changes = { name: name.trim(), location: location.trim(), tags: Array.isArray(tags) ? tags : [] };
-    if (req.file) changes.image = req.file.filename;
-    const place = await Place.findByIdAndUpdate(
-      req.params.id,
-      changes,
-      { new: true, runValidators: true },
-    );
-    if (!place) return res.status(404).json({ message: 'Place not found' });
-    res.status(200).json(place);
-  } catch (err) {
-    if (err?.name === 'CastError') return res.status(400).json({ message: 'Invalid place ID' });
-    res.status(500).json({ message: 'Error updating place', error: err.message });
-  }
+    const data = placePayload(req.body, req.file?.filename);
+    if (!data.name || !data.image || !data.location) return res.status(400).json({ message: 'Name, image and location are required' });
+    res.status(201).json(await Place.create(data));
+  } catch (error) { res.status(error.code === 11000 ? 409 : 400).json({ message: error.code === 11000 ? 'A destination with this slug already exists' : error.message }); }
 };
-
-export const deletePlace = async (req, res) => {
+export const getPlaces = async (req, res) => {
   try {
-    const place = await Place.findByIdAndDelete(req.params.id);
-    if (!place) return res.status(404).json({ message: 'Place not found' });
-    res.status(200).json({ message: 'Place deleted' });
-  } catch (err) {
-    if (err?.name === 'CastError') return res.status(400).json({ message: 'Invalid place ID' });
-    res.status(500).json({ message: 'Error deleting place', error: err.message });
-  }
+    const { q, tag, category } = req.query; const filter = { isActive: { $ne: false } };
+    if (tag) filter.tags = tag.toLowerCase(); if (category) filter.categories = category.toLowerCase();
+    if (q) filter.$or = ['name', 'location', 'district', 'province', 'tags', 'categories'].map((field) => ({ [field]: { $regex: q, $options: 'i' } }));
+    res.json(await Place.find(filter).sort({ name: 1 }));
+  } catch { res.status(500).json({ message: 'Error fetching destinations' }); }
+};
+export const getAllPlacesForAdmin = async (_req, res) => {
+  try { res.json(await Place.find().sort({ createdAt: -1 })); } catch { res.status(500).json({ message: 'Error fetching destinations' }); }
+};
+export const getPlace = async (req, res) => {
+  try {
+    const place = await Place.findOne({ slug: req.params.slug, isActive: { $ne: false } });
+    if (!place) return res.status(404).json({ message: 'Destination not found' });
+    const related = await Place.find({ _id: { $ne: place._id }, isActive: { $ne: false }, $or: [{ categories: { $in: place.categories } }, { province: place.province }] }).limit(3);
+    res.json({ place, related });
+  } catch { res.status(500).json({ message: 'Error fetching destination' }); }
+};
+export const updatePlace = async (req, res) => {
+  try {
+    const current = await Place.findById(req.params.id); if (!current) return res.status(404).json({ message: 'Destination not found' });
+    const place = await Place.findByIdAndUpdate(current._id, placePayload(req.body, req.file?.filename, current), { new: true, runValidators: true }); res.json(place);
+  } catch (error) { res.status(error.name === 'CastError' ? 400 : error.code === 11000 ? 409 : 400).json({ message: error.name === 'CastError' ? 'Invalid destination ID' : error.code === 11000 ? 'A destination with this slug already exists' : error.message }); }
+};
+export const deletePlace = async (req, res) => {
+  try { const place = await Place.findByIdAndDelete(req.params.id); if (!place) return res.status(404).json({ message: 'Destination not found' }); res.json({ message: 'Destination deleted' }); }
+  catch (error) { res.status(error.name === 'CastError' ? 400 : 500).json({ message: error.name === 'CastError' ? 'Invalid destination ID' : 'Error deleting destination' }); }
 };
