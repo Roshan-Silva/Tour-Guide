@@ -1,19 +1,21 @@
 import Place from '../models/Place.js';
+import { deleteCloudAsset } from '../services/cloudinaryService.js';
 
 const list = (value) => (Array.isArray(value) ? value : String(value || '').split(',')).map((item) => item.trim()).filter(Boolean);
 export const makeSlug = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const optionalNumber = (value) => value === '' || value === undefined ? undefined : Number(value);
-const placePayload = (body, image, current = {}) => ({
+const placePayload = (body, image, current = {}, imagePublicId = '') => ({
   name: body.name?.trim(), slug: makeSlug(body.slug || body.name || ''), image: image || current.image,
   additionalImages: list(body.additionalImages), location: body.location?.trim(), district: body.district?.trim() || '', province: body.province?.trim() || '',
   latitude: optionalNumber(body.latitude), longitude: optionalNumber(body.longitude), shortDescription: body.shortDescription?.trim() || '', description: body.description?.trim() || '',
   tags: list(body.tags).map((x) => x.toLowerCase()), categories: list(body.categories).map((x) => x.toLowerCase()), recommendedDuration: Number(body.recommendedDuration || 1),
   bestTimeToVisit: body.bestTimeToVisit?.trim() || 'Year-round', activities: list(body.activities), isActive: body.isActive === undefined ? (current.isActive ?? true) : body.isActive === true || body.isActive === 'true',
+  imagePublicId: imagePublicId || current.imagePublicId || '',
 });
 
 export const addPlace = async (req, res) => {
   try {
-    const data = placePayload(req.body, req.file?.filename);
+    const data = placePayload(req.body, req.file?.path || req.file?.filename, {}, req.file?.public_id);
     if (!data.name || !data.image || !data.location) return res.status(400).json({ message: 'Name, image and location are required' });
     res.status(201).json(await Place.create(data));
   } catch (error) { res.status(error.code === 11000 ? 409 : 400).json({ message: error.code === 11000 ? 'A destination with this slug already exists' : error.message }); }
@@ -40,10 +42,10 @@ export const getPlace = async (req, res) => {
 export const updatePlace = async (req, res) => {
   try {
     const current = await Place.findById(req.params.id); if (!current) return res.status(404).json({ message: 'Destination not found' });
-    const place = await Place.findByIdAndUpdate(current._id, placePayload(req.body, req.file?.filename, current), { new: true, runValidators: true }); res.json(place);
+    const place = await Place.findByIdAndUpdate(current._id, placePayload(req.body, req.file?.path || req.file?.filename, current, req.file?.public_id), { new: true, runValidators: true }); if (req.file && current.imagePublicId) await deleteCloudAsset(current.imagePublicId); res.json(place);
   } catch (error) { res.status(error.name === 'CastError' ? 400 : error.code === 11000 ? 409 : 400).json({ message: error.name === 'CastError' ? 'Invalid destination ID' : error.code === 11000 ? 'A destination with this slug already exists' : error.message }); }
 };
 export const deletePlace = async (req, res) => {
-  try { const place = await Place.findByIdAndDelete(req.params.id); if (!place) return res.status(404).json({ message: 'Destination not found' }); res.json({ message: 'Destination deleted' }); }
+  try { const place = await Place.findByIdAndDelete(req.params.id); if (!place) return res.status(404).json({ message: 'Destination not found' }); await deleteCloudAsset(place.imagePublicId); res.json({ message: 'Destination deleted' }); }
   catch (error) { res.status(error.name === 'CastError' ? 400 : 500).json({ message: error.name === 'CastError' ? 'Invalid destination ID' : 'Error deleting destination' }); }
 };

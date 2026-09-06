@@ -4,6 +4,7 @@ const placeSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 100 },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
   image: { type: String, required: true, trim: true },
+  imagePublicId: { type: String, trim: true, default: '' },
   additionalImages: [{ type: String, trim: true }],
   location: { type: String, required: true, trim: true, maxlength: 150 },
   district: { type: String, trim: true, maxlength: 80, default: '' },

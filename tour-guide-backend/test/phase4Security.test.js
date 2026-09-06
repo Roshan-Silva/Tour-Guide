@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from'node:assert/strict';import jwt from'jsonwebtoken';import multer from'multer';import User from'../models/User.js';import AppError from'../utils/AppError.js';import{errorHandler}from'../middleware/errorMiddleware.js';import{isAllowedImageType}from'../middleware/upload.js';
+const capture=()=>{const output={};return{output,status(code){output.status=code;return this},json(body){output.body=body;return this}}};
+test('application errors retain safe status and field errors',()=>{const e=new AppError('Invalid input',422,[{field:'email'}]);assert.equal(e.status,422);assert.equal(e.errors[0].field,'email')});
+test('central handler standardizes operational errors',()=>{const res=capture();errorHandler(new AppError('Forbidden',403),{},res,()=>{});assert.deepEqual(res.output.body,{success:false,message:'Forbidden',errors:[]})});
+test('central handler hides unexpected internal details',()=>{const res=capture();errorHandler(new Error('database password leaked'),{},res,()=>{});assert.equal(res.output.body.message,'Unexpected server error')});
+test('central handler converts Mongo cast errors',()=>{const res=capture();const e=Object.assign(new Error('raw'),{name:'CastError'});errorHandler(e,{},res,()=>{});assert.equal(res.output.status,400);assert.equal(res.output.body.message,'Invalid resource identifier')});
+test('central handler converts duplicate keys',()=>{const res=capture();errorHandler({code:11000,keyPattern:{email:1}}, {},res,()=>{});assert.equal(res.output.status,409);assert.equal(res.output.body.errors[0].field,'email')});
+test('upload accepts supported image types',()=>assert.equal(isAllowedImageType('image/webp'),true));
+test('upload rejects executable content',()=>assert.equal(isAllowedImageType('application/x-msdownload'),false));
+test('upload size errors receive a safe message',()=>{const res=capture();errorHandler(new multer.MulterError('LIMIT_FILE_SIZE'),{},res,()=>{});assert.equal(res.output.body.message,'Image must be 5 MB or smaller')});
+test('invalid JWT signatures are rejected',()=>assert.throws(()=>jwt.verify(jwt.sign({id:'x'},'one'),'two'),/signature/));
+test('expired JWTs are rejected',()=>{const token=jwt.sign({id:'x'},'secret',{expiresIn:-1});assert.throws(()=>jwt.verify(token,'secret'),/expired/)});
+test('sensitive refresh and reset fields are excluded by default',()=>{for(const field of ['refreshTokenHash','refreshTokenExpiresAt','passwordResetTokenHash','passwordResetExpiresAt'])assert.equal(User.schema.path(field).options.select,false)});

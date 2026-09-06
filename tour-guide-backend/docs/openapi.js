@@ -1,0 +1,36 @@
+const json = (schema) => ({ 'application/json': { schema } });
+const errorResponses = { 400: { description: 'Invalid request' }, 401: { description: 'Authentication required' }, 403: { description: 'Insufficient permission' }, 422: { description: 'Validation failed' }, 500: { description: 'Unexpected server error' } };
+const security = [{ bearerAuth: [] }];
+export default {
+  openapi: '3.0.3', info: { title: 'Ceylon Explorer API', version: '4.0.0', description: 'Travel planning, destinations, drivers, bookings, favorites, and verified reviews.' },
+  servers: [{ url: '/api', description: 'Current server' }],
+  tags: ['Auth','Destinations','Drivers','Trip Planner','Bookings','Favorites','Reviews','Driver Portal','Admin'].map((name) => ({ name })),
+  components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, refreshCookie: { type: 'apiKey', in: 'cookie', name: 'refreshToken' } }, schemas: {
+    Error: { type: 'object', properties: { success: { type: 'boolean', example: false }, message: { type: 'string' }, errors: { type: 'array', items: { type: 'object' } } } },
+    Auth: { type: 'object', required: ['email','password'], properties: { email: { type: 'string', format: 'email' }, password: { type: 'string', format: 'password', minLength: 8 } } },
+    Planner: { type: 'object', required: ['startDate','numberOfDays','partySize','startingLocation','interests'], properties: { startDate: { type: 'string', format: 'date' }, numberOfDays: { type: 'integer', minimum: 1, maximum: 30 }, partySize: { type: 'integer', minimum: 1, maximum: 20 }, startingLocation: { type: 'string' }, interests: { type: 'array', items: { type: 'string' } }, preferredVehicle: { type: 'string' }, budget: { type: 'number' } } },
+    Booking: { type: 'object', required: ['driverId','destination','startDate','endDate','partySize'], properties: { driverId: { type: 'string' }, destination: { type: 'string' }, startDate: { type: 'string', format: 'date' }, endDate: { type: 'string', format: 'date' }, partySize: { type: 'integer' }, notes: { type: 'string' }, itineraryId: { type: 'string' } } },
+  } },
+  paths: {
+    '/auth/register': { post: { tags:['Auth'], summary:'Register traveler', requestBody:{ required:true, content:json({ allOf:[{ $ref:'#/components/schemas/Auth' }], properties:{ name:{type:'string'}, confirmPassword:{type:'string'} } }) }, responses:{201:{description:'Account created'},...errorResponses} } },
+    '/auth/login': { post: { tags:['Auth'], summary:'Create access and refresh session', requestBody:{required:true,content:json({$ref:'#/components/schemas/Auth'})}, responses:{200:{description:'Signed in'},...errorResponses} } },
+    '/auth/refresh': { post:{ tags:['Auth'], summary:'Rotate refresh token', security:[{refreshCookie:[]}], responses:{200:{description:'Session refreshed'},...errorResponses} } },
+    '/auth/logout': { post:{tags:['Auth'],summary:'Revoke refresh session',responses:{200:{description:'Logged out'}}} },
+    '/auth/me': { get:{tags:['Auth'],summary:'Get current safe user profile',security,responses:{200:{description:'Profile'},...errorResponses}},put:{tags:['Auth'],summary:'Update current display name',security,responses:{200:{description:'Profile updated'},...errorResponses}} },
+    '/auth/forgot-password': { post:{tags:['Auth'],summary:'Request password reset',responses:{200:{description:'Generic accepted response'}}} },
+    '/auth/reset-password/{token}': { post:{tags:['Auth'],summary:'Use one-time password reset token',parameters:[{in:'path',name:'token',required:true,schema:{type:'string'}}],responses:{200:{description:'Password reset'},...errorResponses}}},
+    '/places': { get:{tags:['Destinations'],summary:'Search active destinations',parameters:[{in:'query',name:'q',schema:{type:'string'}},{in:'query',name:'category',schema:{type:'string'}}],responses:{200:{description:'Destination list'}}} },
+    '/places/{slug}': { get:{tags:['Destinations'],summary:'Destination detail',parameters:[{in:'path',name:'slug',required:true,schema:{type:'string'}}],responses:{200:{description:'Destination and related places'},404:{description:'Not found'}}} },
+    '/drivers': { get:{tags:['Drivers'],summary:'Filter verified available drivers',parameters:['startDate','endDate','vehicleType','language','serviceArea','minCapacity','maxPrice','minRating'].map((name)=>({in:'query',name,schema:{type:'string'}})),responses:{200:{description:'Driver list'},...errorResponses}}},
+    '/drivers/{id}': { get:{tags:['Drivers'],summary:'Public driver and reviews',parameters:[{in:'path',name:'id',required:true,schema:{type:'string'}}],responses:{200:{description:'Public driver detail'},404:{description:'Not found'}}}},
+    '/trip-planner/generate': { post:{tags:['Trip Planner'],summary:'Generate rule-based itinerary',requestBody:{required:true,content:json({$ref:'#/components/schemas/Planner'})},responses:{200:{description:'Generated itinerary'},...errorResponses}}},
+    '/trip-planner/save': { post:{tags:['Trip Planner'],summary:'Save owned itinerary',security,requestBody:{required:true,content:json({$ref:'#/components/schemas/Planner'})},responses:{201:{description:'Saved itinerary'},...errorResponses}}},
+    '/bookings/add': { post:{tags:['Bookings'],summary:'Create booking request',security,requestBody:{required:true,content:json({$ref:'#/components/schemas/Booking'})},responses:{201:{description:'Pending booking created'},409:{description:'Driver unavailable'},...errorResponses}}},
+    '/bookings/mine': { get:{tags:['Bookings'],summary:'List traveler bookings',security,responses:{200:{description:'Owned bookings'},...errorResponses}}},
+    '/favorites': { get:{tags:['Favorites'],summary:'List saved destinations',security,responses:{200:{description:'Favorites'},...errorResponses}}},
+    '/favorites/{destinationId}': { post:{tags:['Favorites'],summary:'Save destination',security,responses:{201:{description:'Saved'},409:{description:'Already saved'},...errorResponses}},delete:{tags:['Favorites'],summary:'Unsave destination',security,responses:{200:{description:'Removed'},...errorResponses}}},
+    '/reviews': { post:{tags:['Reviews'],summary:'Review completed owned booking',security,responses:{201:{description:'Review created'},...errorResponses}}},
+    '/driver/bookings': { get:{tags:['Driver Portal'],summary:'List assigned bookings',security,responses:{200:{description:'Assigned bookings'},...errorResponses}}},
+    '/admin/dashboard': { get:{tags:['Admin'],summary:'Admin dashboard metrics',security,responses:{200:{description:'Dashboard'},...errorResponses}}},
+  },
+};

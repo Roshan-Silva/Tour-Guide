@@ -3,6 +3,7 @@ import Driver from '../models/Driver.js';
 import { BLOCKING_STATUSES } from '../services/bookingRules.js';
 import { validateDateRange } from '../utils/dateRange.js';
 import Review from '../models/Review.js';
+import { deleteCloudAsset } from '../services/cloudinaryService.js';
 
 const list = (value) => typeof value === 'string' ? value.split(',').map((item) => item.trim()).filter(Boolean) : value || [];
 const bool = (value, fallback = true) => value === undefined ? fallback : value === true || value === 'true';
@@ -12,6 +13,7 @@ const driverPayload = (body, image, defaults = {}) => ({
   name: body.fullName?.trim() || body.name?.trim(),
   phoneNumber: body.phoneNumber?.trim(),
   profileImage: image,
+  profileImagePublicId: defaults.profileImagePublicId || '',
   image,
   bio: body.bio?.trim() || '',
   languages: list(body.languages),
@@ -28,7 +30,7 @@ const driverPayload = (body, image, defaults = {}) => ({
 
 export const addDriver = async (req, res) => {
   try {
-    const payload = driverPayload(req.body, req.file?.filename, { availability: true, verificationStatus: 'verified' });
+    const payload = driverPayload(req.body, req.file?.path || req.file?.filename, { availability: true, verificationStatus: 'verified', profileImagePublicId: req.file?.public_id });
     if (!payload.fullName || !payload.phoneNumber || !payload.vehicleType || !payload.profileImage) return res.status(400).json({ message: 'Name, phone number, vehicle type and image are required' });
     const driver = await Driver.create(payload);
     res.status(201).json(driver);
@@ -84,10 +86,10 @@ export const updateDriver = async (req, res) => {
     const current = await Driver.findById(req.params.id);
     if (!current) return res.status(404).json({ message: 'Driver not found' });
     const payload = driverPayload(req.body, req.file?.filename || current.profileImage || current.image, {
-      availability: current.availability, verificationStatus: current.verificationStatus,
+      availability: current.availability, verificationStatus: current.verificationStatus, profileImagePublicId: req.file?.public_id || current.profileImagePublicId,
     });
     const driver = await Driver.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
-    res.json(driver);
+    if (req.file && current.profileImagePublicId) await deleteCloudAsset(current.profileImagePublicId); res.json(driver);
   } catch (error) {
     res.status(error.name === 'CastError' ? 400 : 400).json({ message: error.name === 'CastError' ? 'Invalid driver ID' : error.message });
   }
@@ -98,7 +100,7 @@ export const deleteDriver = async (req, res) => {
     if (await Booking.exists({ driver: req.params.id, status: { $in: BLOCKING_STATUSES } })) return res.status(409).json({ message: 'Resolve this driver’s active bookings before deletion' });
     const driver = await Driver.findByIdAndDelete(req.params.id);
     if (!driver) return res.status(404).json({ message: 'Driver not found' });
-    res.json({ message: 'Driver deleted' });
+    await deleteCloudAsset(driver.profileImagePublicId); await deleteCloudAsset(driver.vehicleImagePublicId); res.json({ message: 'Driver deleted' });
   } catch (error) {
     res.status(error.name === 'CastError' ? 400 : 500).json({ message: error.name === 'CastError' ? 'Invalid driver ID' : 'Error deleting driver' });
   }

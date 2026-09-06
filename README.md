@@ -130,3 +130,33 @@ Reviews require an authenticated traveler, an owned completed booking, a whole-n
 - Use an unpredictable `JWT_SECRET` in deployed environments.
 - Restrict the Atlas IP Access List and set `CLIENT_URL` to the deployed frontend origin.
 - Uploaded images are limited to 5 MB and image MIME types.
+
+## Phase 4 production configuration
+
+Authentication uses a short-lived access token plus a rotating refresh token stored in an HttpOnly cookie. Logout revokes the stored refresh-token hash, and password reset tokens are random, hashed in MongoDB, expire after 30 minutes, and are one-time use. The frontend retries one failed authenticated request after refreshing, then clears the session without creating redirect loops.
+
+Required additional backend variables:
+
+```env
+JWT_REFRESH_SECRET=a-different-long-random-secret
+ACCESS_TOKEN_TTL=15m
+REFRESH_TOKEN_DAYS=7
+NODE_ENV=development
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+EXPOSE_RESET_TOKEN=false
+```
+
+When all three Cloudinary variables exist, new destination and driver images are uploaded to Cloudinary and their secure URL/public ID are stored. Replacements and deletions remove the previous cloud asset. Without those variables, local disk uploads remain available for development.
+
+Password email delivery is behind `services/emailService.js`. Development logs the reset URL on the backend. Setting `EXPOSE_RESET_TOKEN=true` also returns the token in the development response; never enable this in production.
+
+Interactive OpenStreetMap views use stored destination coordinates and do not require a paid map key.
+
+API documentation is available while the backend runs:
+
+```text
+http://localhost:5000/api-docs
+http://localhost:5000/api-docs.json
+```

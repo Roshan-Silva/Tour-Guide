@@ -18,6 +18,8 @@ import SavedPlaces from './pages/SavedPlaces';
 import DriverDetail from './pages/DriverDetail';
 import TravelerDashboard from './pages/TravelerDashboard';
 import TravelerRoute from './components/TravelerRoute';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/drivers" element={<Drivers />} />
           <Route path="/drivers/:id" element={<DriverDetail />} />
           <Route path="/destinations" element={<Destinations />} />

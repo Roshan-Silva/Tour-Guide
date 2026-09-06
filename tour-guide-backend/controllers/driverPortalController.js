@@ -2,6 +2,7 @@ import Booking from '../models/Booking.js';
 import Driver from '../models/Driver.js';
 import { assertBookingActor } from '../services/bookingRules.js';
 import { transitionBooking } from '../services/bookingService.js';
+import { deleteCloudAsset } from '../services/cloudinaryService.js';
 
 const getOwnDriver = async (userId) => Driver.findOne({ user: userId });
 
@@ -21,14 +22,23 @@ export const updateDriverProfile = async (req, res) => {
   if (changes.fullName) changes.name = changes.fullName;
   if (typeof changes.languages === 'string') changes.languages = changes.languages.split(',').map((item) => item.trim()).filter(Boolean);
   if (typeof changes.serviceAreas === 'string') changes.serviceAreas = changes.serviceAreas.split(',').map((item) => item.trim()).filter(Boolean);
-  if (req.file) { changes.profileImage = req.file.filename; changes.image = req.file.filename; }
+  if (req.file) { changes.profileImage = req.file.path || req.file.filename; changes.image = changes.profileImage; changes.profileImagePublicId = req.file.public_id || ''; }
   try {
+    const current = await Driver.findOne({ user: req.user });
     const driver = await Driver.findOneAndUpdate({ user: req.user }, changes, { new: true, runValidators: true });
     if (!driver) return res.status(404).json({ message: 'No driver profile is connected to this account' });
+    if (req.file && current?.profileImagePublicId) await deleteCloudAsset(current.profileImagePublicId);
     res.json(driver);
   } catch (error) {
     res.status(400).json({ message: error.message || 'Could not update driver profile' });
   }
+};
+
+export const updateVehicleImage = async (req, res) => {
+  if (!req.file) return res.status(422).json({ success: false, message: 'Vehicle image is required', errors: [] });
+  const current = await getOwnDriver(req.user); if (!current) return res.status(404).json({ message: 'No driver profile is connected to this account' });
+  const driver = await Driver.findByIdAndUpdate(current._id, { vehicleImage: req.file.path || req.file.filename, vehicleImagePublicId: req.file.public_id || '' }, { new: true });
+  await deleteCloudAsset(current.vehicleImagePublicId); res.json({ success: true, message: 'Vehicle image updated', data: driver, ...driver.toObject() });
 };
 
 export const getAssignedBookings = async (req, res) => {
