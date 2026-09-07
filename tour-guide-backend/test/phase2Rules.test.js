@@ -5,6 +5,7 @@ import Place from '../models/Place.js';
 import Favorite from '../models/Favorite.js';
 import { buildItinerary, scoreDestination, validatePlannerInput } from '../services/tripPlannerService.js';
 import { assertReviewAllowed, calculateRatingSummary } from '../services/reviewService.js';
+import { dedupePlaceLabels } from '../utils/placeLabels.js';
 
 const tomorrow = () => { const date = new Date(); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); };
 const id = () => new mongoose.Types.ObjectId();
@@ -13,6 +14,12 @@ test('recommendations rank destinations matching traveler interests', () => {
   const beach = scoreDestination({ tags: ['beaches'], categories: [], activities: ['Swim'] }, ['Beaches'], 'Kandy');
   const history = scoreDestination({ tags: ['history'], categories: [], activities: [] }, ['Beaches'], 'Kandy');
   assert.ok(beach.score > history.score);
+});
+test('destination detail labels are unique across categories and tags', () => {
+  assert.deepEqual(
+    dedupePlaceLabels(['Nature', 'Hiking'], [' hiking ', 'Waterfalls', 'NATURE', 'Hill Country']),
+    { categories: ['Nature', 'Hiking'], tags: ['Waterfalls', 'Hill Country'] },
+  );
 });
 test('invalid number of days is rejected', () => assert.throws(() => validatePlannerInput({ startDate: tomorrow(), numberOfDays: 0, startingLocation: 'Colombo' }), /between 1 and 30/));
 test('past planner start date is rejected', () => assert.throws(() => validatePlannerInput({ startDate: '2020-01-01', numberOfDays: 2, startingLocation: 'Colombo' }), /past/));

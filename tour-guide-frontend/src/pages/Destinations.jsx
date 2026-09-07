@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, Search } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api, { getImageUrl, getStoredUser } from '../api';
 
 export default function Destinations() {
-  const [places, setPlaces] = useState([]); const [saved, setSaved] = useState(new Set()); const [query, setQuery] = useState(''); const [category, setCategory] = useState('All'); const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [places, setPlaces] = useState([]); const [saved, setSaved] = useState(new Set()); const [query, setQuery] = useState(params.get('q') || ''); const [category, setCategory] = useState(params.get('category') || 'All'); const navigate = useNavigate();
   useEffect(() => { api.get('/places').then((r) => setPlaces(r.data)); if (getStoredUser()?.role === 'traveler') api.get('/favorites').then((r) => setSaved(new Set(r.data.map((x) => x.destination._id)))).catch(() => {}); }, []);
   const categories = useMemo(() => ['All', ...new Set(places.flatMap((p) => p.categories || []))], [places]);
   const filtered = places.filter((p) => (category === 'All' || p.categories?.includes(category)) && `${p.name} ${p.location} ${p.tags?.join(' ')}`.toLowerCase().includes(query.toLowerCase()));

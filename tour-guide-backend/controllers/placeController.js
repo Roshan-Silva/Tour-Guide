@@ -1,5 +1,6 @@
 import Place from '../models/Place.js';
 import { deleteCloudAsset } from '../services/cloudinaryService.js';
+import { dedupePlaceLabels } from '../utils/placeLabels.js';
 
 const list = (value) => (Array.isArray(value) ? value : String(value || '').split(',')).map((item) => item.trim()).filter(Boolean);
 export const makeSlug = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -36,7 +37,9 @@ export const getPlace = async (req, res) => {
     const place = await Place.findOne({ slug: req.params.slug, isActive: { $ne: false } });
     if (!place) return res.status(404).json({ message: 'Destination not found' });
     const related = await Place.find({ _id: { $ne: place._id }, isActive: { $ne: false }, $or: [{ categories: { $in: place.categories } }, { province: place.province }] }).limit(3);
-    res.json({ place, related });
+    const placeData = place.toObject();
+    const labels = dedupePlaceLabels(placeData.categories, placeData.tags);
+    res.json({ place: { ...placeData, ...labels }, related });
   } catch { res.status(500).json({ message: 'Error fetching destination' }); }
 };
 export const updatePlace = async (req, res) => {

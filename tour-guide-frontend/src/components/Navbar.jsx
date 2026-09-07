@@ -20,7 +20,7 @@ export default function Navbar() {
   const logout = () => { clearSession(); setOpen(false); navigate('/'); };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-[#f8faf8]/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-[#f4f1e9]/90 backdrop-blur-xl">
       <div className="page-shell flex h-20 items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
           <span className="grid h-10 w-10 place-items-center rounded-full bg-teal-800 text-white"><MapPin size={20} /></span>

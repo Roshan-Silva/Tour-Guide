@@ -20,6 +20,7 @@ import TravelerDashboard from './pages/TravelerDashboard';
 import TravelerRoute from './components/TravelerRoute';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import SavedItineraries from './pages/SavedItineraries';
 
 function App() {
   return (
@@ -42,6 +43,8 @@ function App() {
           <Route path="/traveler" element={<TravelerRoute><TravelerDashboard view="overview" /></TravelerRoute>} />
           <Route path="/traveler/reviews" element={<TravelerRoute><TravelerDashboard view="reviews" /></TravelerRoute>} />
           <Route path="/traveler/profile" element={<TravelerRoute><TravelerDashboard view="profile" /></TravelerRoute>} />
+          <Route path="/traveler/itineraries" element={<TravelerRoute><SavedItineraries /></TravelerRoute>} />
+          <Route path="/traveler/itineraries/:id" element={<TravelerRoute><SavedItineraries /></TravelerRoute>} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/driver" element={<DriverRoute><DriverDashboard view="overview" /></DriverRoute>} />
           <Route path="/driver/bookings" element={<DriverRoute><DriverDashboard view="bookings" /></DriverRoute>} />
