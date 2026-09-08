@@ -9,7 +9,7 @@ const bookingSchema = new mongoose.Schema({
   notes: { type: String, trim: true, maxlength: 500, default: '' },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'rejected', 'cancelled', 'completed'],
+    enum: ['pending', 'accepted', 'confirmed', 'rejected', 'cancelled', 'expired', 'completed'],
     default: 'pending',
     index: true,
   },
@@ -19,6 +19,11 @@ const bookingSchema = new mongoose.Schema({
   dailyRateAtBooking: { type: Number, required: true, min: 0 },
   numberOfDays: { type: Number, required: true, min: 1 },
   estimatedTotal: { type: Number, required: true, min: 0 },
+  currency: { type: String, enum: ['LKR'], default: 'LKR' },
+  driverDailyRateAtBooking: { type: Number, min: 0 }, driverSubtotal: { type: Number, min: 0 },
+  platformCommissionRateBps: { type: Number, min: 0, max: 10000 }, platformCommissionAmount: { type: Number, min: 0 }, travelerTotal: { type: Number, min: 0 },
+  paymentStatus: { type: String, enum: ['unpaid','pending','paid','failed','cancelled','partially_refunded','refunded','chargeback'], default: 'unpaid', index: true },
+  acceptedAt: Date, paymentDueAt: { type: Date, index: true },
   // Legacy field retained only to support migration of existing records.
   tripDate: { type: Date },
 }, { timestamps: true });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isRoleAuthorized } from '../middleware/authMiddleware.js';
-import { assertBookingActor, assertCompletionEligible, assertDriverBookable, assertTransitionAllowed, statusReleasesAvailability } from '../services/bookingRules.js';
+import { assertBookingActor, assertCompletionEligible, assertDriverBookable, assertTransitionAllowed, BLOCKING_STATUSES, statusReleasesAvailability } from '../services/bookingRules.js';
 import { calculatePrice, rangesOverlap, validateDateRange } from '../utils/dateRange.js';
 import User from '../models/User.js';
 
@@ -20,7 +20,8 @@ test('non-overlapping date range is allowed', () => assert.equal(rangesOverlap(n
 test('inactive driver cannot be booked', () => assert.throws(() => assertDriverBookable({ availability: false, verificationStatus: 'verified' }), /inactive/));
 test('booking total is calculated server-side from daily rate and inclusive days', () => { const range = validateDateRange('2026-10-10', '2026-10-14', now); assert.equal(range.numberOfDays, 5); assert.equal(calculatePrice(12000, range.numberOfDays), 60000); });
 test('invalid status transition is rejected', () => assert.throws(() => assertTransitionAllowed('completed', 'pending'), /cannot move/));
-test('driver can accept own pending booking', () => { assert.doesNotThrow(() => assertBookingActor({ booking, actorRole: 'driver', actorUserId: 'driver-user', driverProfileId: 'driver-1', action: 'confirm' })); assert.doesNotThrow(() => assertTransitionAllowed('pending', 'confirmed')); });
+test('driver can accept own pending booking without confirming payment', () => { assert.doesNotThrow(() => assertBookingActor({ booking, actorRole: 'driver', actorUserId: 'driver-user', driverProfileId: 'driver-1', action: 'accept' })); assert.doesNotThrow(() => assertTransitionAllowed('pending', 'accepted')); });
 test('driver can reject own pending booking', () => { assert.doesNotThrow(() => assertBookingActor({ booking, actorRole: 'driver', actorUserId: 'driver-user', driverProfileId: 'driver-1', action: 'reject' })); assert.doesNotThrow(() => assertTransitionAllowed('pending', 'rejected')); });
 test('cancellation releases driver availability', () => assert.equal(statusReleasesAvailability('cancelled'), true));
 test('completed trip is terminal and only eligible after end date', () => { const ended = { ...booking, status: 'confirmed', endDate: new Date('2026-09-30') }; assert.doesNotThrow(() => assertCompletionEligible(ended, now)); assert.doesNotThrow(() => assertTransitionAllowed('confirmed', 'completed')); assert.throws(() => assertTransitionAllowed('completed', 'confirmed'), /cannot move/); assert.equal(statusReleasesAvailability('completed'), true); });
+test('accepted bookings block dates and expired bookings release them', () => { assert.ok(BLOCKING_STATUSES.includes('accepted')); assert.equal(statusReleasesAvailability('expired'), true); });

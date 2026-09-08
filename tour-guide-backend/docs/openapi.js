@@ -2,9 +2,9 @@ const json = (schema) => ({ 'application/json': { schema } });
 const errorResponses = { 400: { description: 'Invalid request' }, 401: { description: 'Authentication required' }, 403: { description: 'Insufficient permission' }, 422: { description: 'Validation failed' }, 500: { description: 'Unexpected server error' } };
 const security = [{ bearerAuth: [] }];
 export default {
-  openapi: '3.0.3', info: { title: 'Ceylon Explorer API', version: '4.0.0', description: 'Travel planning, destinations, drivers, bookings, favorites, and verified reviews.' },
+  openapi: '3.0.3', info: { title: 'Ceylon Explorer API', version: '5.0.0', description: 'Travel planning, bookings, verified PayHere payments, refunds, reconciliation, and manual driver payouts.' },
   servers: [{ url: '/api', description: 'Current server' }],
-  tags: ['Auth','Destinations','Drivers','Trip Planner','Bookings','Favorites','Reviews','Driver Portal','Admin'].map((name) => ({ name })),
+  tags: ['Auth','Destinations','Drivers','Trip Planner','Bookings','Payments','Favorites','Reviews','Driver Portal','Admin'].map((name) => ({ name })),
   components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, refreshCookie: { type: 'apiKey', in: 'cookie', name: 'refreshToken' } }, schemas: {
     Error: { type: 'object', properties: { success: { type: 'boolean', example: false }, message: { type: 'string' }, errors: { type: 'array', items: { type: 'object' } } } },
     Auth: { type: 'object', required: ['email','password'], properties: { email: { type: 'string', format: 'email' }, password: { type: 'string', format: 'password', minLength: 8 } } },
@@ -27,6 +27,14 @@ export default {
     '/trip-planner/save': { post:{tags:['Trip Planner'],summary:'Save owned itinerary',security,requestBody:{required:true,content:json({$ref:'#/components/schemas/Planner'})},responses:{201:{description:'Saved itinerary'},...errorResponses}}},
     '/bookings/add': { post:{tags:['Bookings'],summary:'Create booking request',security,requestBody:{required:true,content:json({$ref:'#/components/schemas/Booking'})},responses:{201:{description:'Pending booking created'},409:{description:'Driver unavailable'},...errorResponses}}},
     '/bookings/mine': { get:{tags:['Bookings'],summary:'List traveler bookings',security,responses:{200:{description:'Owned bookings'},...errorResponses}}},
+    '/payments/bookings/{bookingId}/checkout': { post:{tags:['Payments'],summary:'Start hosted PayHere checkout from the server pricing snapshot',security,responses:{201:{description:'Safe checkout fields'},409:{description:'Booking is not payable'},...errorResponses}}},
+    '/payments/payhere/notify': { post:{tags:['Payments'],summary:'Verified form-encoded PayHere server callback',responses:{200:{description:'Idempotently processed'},400:{description:'Invalid callback'}}}},
+    '/payments/{id}/status': { get:{tags:['Payments'],summary:'Read owned payment status from MongoDB',security,responses:{200:{description:'Safe payment state'},...errorResponses}}},
+    '/driver/earnings': { get:{tags:['Driver Portal'],summary:'List current driver payouts',security,responses:{200:{description:'Payouts'},...errorResponses}}},
+    '/admin/payments': { get:{tags:['Admin'],summary:'List payment accounting records',security,responses:{200:{description:'Payments'},...errorResponses}}},
+    '/admin/payments/{id}/reconcile': { post:{tags:['Admin'],summary:'Reconcile with PayHere Retrieval API',security,responses:{200:{description:'Reconciliation result'},...errorResponses}}},
+    '/admin/payments/{id}/refunds': { post:{tags:['Admin'],summary:'Request idempotent PayHere refund',security,responses:{200:{description:'Refund record'},...errorResponses}}},
+    '/admin/payouts': { get:{tags:['Admin'],summary:'List and manage manual driver payouts',security,responses:{200:{description:'Payouts'},...errorResponses}}},
     '/favorites': { get:{tags:['Favorites'],summary:'List saved destinations',security,responses:{200:{description:'Favorites'},...errorResponses}}},
     '/favorites/{destinationId}': { post:{tags:['Favorites'],summary:'Save destination',security,responses:{201:{description:'Saved'},409:{description:'Already saved'},...errorResponses}},delete:{tags:['Favorites'],summary:'Unsave destination',security,responses:{200:{description:'Removed'},...errorResponses}}},
     '/reviews': { post:{tags:['Reviews'],summary:'Review completed owned booking',security,responses:{201:{description:'Review created'},...errorResponses}}},

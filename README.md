@@ -160,3 +160,32 @@ API documentation is available while the backend runs:
 http://localhost:5000/api-docs
 http://localhost:5000/api-docs.json
 ```
+
+## Payment architecture
+
+```text
+Traveler → booking request → driver accepts → PayHere hosted checkout
+         → verified callback → booking confirmed → trip completed
+         → payout pending → admin approval → external bank transfer recorded
+```
+
+Booking state and payment state are separate. A driver changes `pending` to `accepted`; only a cryptographically verified PayHere notification changes it to `confirmed`. Accepted bookings expire after `PAYMENT_WINDOW_HOURS` (24 by default). Check-on-read and check-on-payment cleanup releases their transactional per-day locks; production should additionally invoke the same expiry service from a scheduled job.
+
+All authoritative values are calculated on the backend. Money is stored as integer LKR minor units (cents). The driver subtotal is daily rate × 100 × inclusive days, commission is rounded from the subtotal using `PLATFORM_COMMISSION_RATE`, and traveler total is subtotal plus commission. The configured rate is snapshotted in basis points (`0.02` = `200`) on every booking and payment. Gateway fees and net settlement remain separate reconciliation fields; the full traveler payment is not platform revenue.
+
+PayHere code is isolated under `services/payments/`. Checkout hashes and callback `md5sig` checks use secrets only on the server. Callbacks also verify merchant ID, order ID, exact amount, currency, and provider status. Notification fingerprints, unique provider references, transactions, and conditional updates provide idempotency. Return/cancel pages never confirm payments; they read MongoDB status with bounded polling.
+
+Refund records are admin-only and complete only after a successful provider response. Cancellation does not imply a refund. Completed paid trips create one manual payout record; an admin approves it, transfers funds outside the application, and records the bank reference. Chargebacks and reconciliation mismatches remain visible for manual review.
+
+### PayHere Sandbox testing
+
+1. Create a PayHere Sandbox merchant and an API app; obtain sandbox Merchant ID/Secret and App ID/Secret.
+2. Copy `.env.example` to `.env`, keep `PAYHERE_MODE=sandbox`, and enter sandbox values. Never expose secrets through `VITE_` variables.
+3. Set return/cancel URLs to the frontend routes. The notify URL must be a publicly reachable HTTPS backend URL; use a temporary secure development tunnel and never commit it.
+4. Restart the API, create a booking, accept it as the driver, and choose **Pay securely** in My Trips.
+5. Complete sandbox checkout. Verify the `Payment` is paid, the `Booking` is confirmed, and financial audit events exist in MongoDB.
+6. Test cancellation and failure separately. Replay an identical callback to confirm idempotency. Use Admin Finance to test reconciliation, refund, payout approval, and bank-reference recording.
+
+Run `npm run migrate:payments` once for an existing database before using the payment flow.
+
+Before live mode, obtain merchant approval and decide the cancellation/refund policy, gateway fee agreement, tax/accounting treatment, privacy terms, and payout schedule. Replace all credentials and URLs, require HTTPS, set `PAYHERE_MODE=live` explicitly, verify webhook reachability, and perform a controlled live test. Live mode fails startup if required configuration or HTTPS URLs are missing and never silently falls back to sandbox.

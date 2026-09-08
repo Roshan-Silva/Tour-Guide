@@ -23,6 +23,11 @@ import cookieParser from 'cookie-parser';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import swaggerUi from 'swagger-ui-express';
 import openapi from './docs/openapi.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import Payment from './models/Payment.js';
+import Payout from './models/Payout.js';
+import Refund from './models/Refund.js';
+import { validatePayHereConfig } from './services/payments/providers/payhere.provider.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -56,6 +61,7 @@ app.use('/api/driver', driverPortalRoutes);
 app.use('/api/trip-planner', tripPlannerRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.use('/api', notFound);
 app.use(errorHandler);
@@ -63,10 +69,11 @@ app.use(errorHandler);
 for (const name of ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET']) if (!process.env[name]) throw new Error(`${name} is not set in the environment variables`);
 if (process.env.JWT_SECRET === process.env.JWT_REFRESH_SECRET) throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be different');
 if (process.env.NODE_ENV === 'production' && (process.env.JWT_SECRET.length < 32 || process.env.JWT_REFRESH_SECRET.length < 32)) throw new Error('JWT secrets must contain at least 32 characters in production');
+if ((process.env.PAYHERE_MODE || 'sandbox') === 'live') validatePayHereConfig();
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
-    await Promise.all([BookingLock.init(), Favorite.init(), Review.init(), Place.init()]);
+    await Promise.all([BookingLock.init(), Favorite.init(), Review.init(), Place.init(), Payment.init(), Payout.init(), Refund.init()]);
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
     });

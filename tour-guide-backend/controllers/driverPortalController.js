@@ -3,6 +3,8 @@ import Driver from '../models/Driver.js';
 import { assertBookingActor } from '../services/bookingRules.js';
 import { transitionBooking } from '../services/bookingService.js';
 import { deleteCloudAsset } from '../services/cloudinaryService.js';
+import { expireDueBookings } from '../services/payments/payment.service.js';
+import Payout from '../models/Payout.js';
 
 const getOwnDriver = async (userId) => Driver.findOne({ user: userId });
 
@@ -45,12 +47,13 @@ export const getAssignedBookings = async (req, res) => {
   try {
     const driver = await getOwnDriver(req.user);
     if (!driver) return res.status(404).json({ message: 'No driver profile is connected to this account' });
+    await expireDueBookings({ driver: driver._id });
     const filter = { driver: driver._id };
     if (req.query.status) filter.status = req.query.status;
     if (req.query.upcoming === 'true') {
       const today = new Date(); today.setUTCHours(0, 0, 0, 0);
       filter.startDate = { $gte: today };
-      filter.status = { $in: ['pending', 'confirmed'] };
+      filter.status = { $in: ['pending', 'accepted', 'confirmed'] };
     }
     const bookings = await Booking.find(filter).populate('user', 'name email').sort({ startDate: 1 });
     res.json(bookings);
@@ -89,6 +92,10 @@ const changeStatus = (nextStatus) => async (req, res) => {
   }
 };
 
-export const acceptBooking = changeStatus('confirmed');
+export const acceptBooking = changeStatus('accepted');
 export const rejectBooking = changeStatus('rejected');
 export const completeBooking = changeStatus('completed');
+export const getEarnings = async (req, res) => {
+  try { const driver=await getOwnDriver(req.user);if(!driver)return res.status(404).json({message:'No driver profile is connected to this account'});res.json(await Payout.find({driver:driver._id}).populate('booking','destination endDate').sort({createdAt:-1})); }
+  catch(error){res.status(500).json({message:'Could not load earnings'});}
+};

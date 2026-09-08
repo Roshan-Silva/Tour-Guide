@@ -1,0 +1,10 @@
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import { checkout, notify, status } from '../controllers/paymentController.js';
+import { authorizeRoles, protect } from '../middleware/authMiddleware.js';
+import { idParamRules } from '../middleware/validate.js';
+const router=express.Router();
+router.post('/payhere/notify',express.urlencoded({extended:false,limit:'20kb'}),notify);
+router.post('/bookings/:bookingId/checkout',rateLimit({windowMs:15*60*1000,limit:10}),protect,authorizeRoles('traveler'),checkout);
+router.get('/:id/status',protect,authorizeRoles('traveler','admin'),idParamRules,status);
+export default router;
