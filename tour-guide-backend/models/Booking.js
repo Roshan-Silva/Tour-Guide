@@ -21,9 +21,11 @@ const bookingSchema = new mongoose.Schema({
   estimatedTotal: { type: Number, required: true, min: 0 },
   currency: { type: String, enum: ['LKR'], default: 'LKR' },
   driverDailyRateAtBooking: { type: Number, min: 0 }, driverSubtotal: { type: Number, min: 0 },
+  agreedTourPrice:{type:Number,min:0},commissionRateBps:{type:Number,min:0,max:10000},commissionAmount:{type:Number,min:0},tourPaymentArrangement:{type:String,enum:['direct_to_driver'],default:'direct_to_driver'},
   platformCommissionRateBps: { type: Number, min: 0, max: 10000 }, platformCommissionAmount: { type: Number, min: 0 }, travelerTotal: { type: Number, min: 0 },
   paymentStatus: { type: String, enum: ['unpaid','pending','paid','failed','cancelled','partially_refunded','refunded','chargeback'], default: 'unpaid', index: true },
   acceptedAt: Date, paymentDueAt: { type: Date, index: true },
+  completedAt:Date,completionSource:{type:String,enum:['driver','traveler','admin','automatic']},
   // Legacy field retained only to support migration of existing records.
   tripDate: { type: Date },
 }, { timestamps: true });

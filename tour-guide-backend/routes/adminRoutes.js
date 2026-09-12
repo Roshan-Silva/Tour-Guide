@@ -1,9 +1,8 @@
 import express from 'express';
-import { getAllBookings, getDashboard, getPayments, getPayouts } from '../controllers/adminController.js';
-import { reconcilePayment, requestRefund } from '../controllers/paymentController.js';
-import { updatePayout } from '../controllers/payoutController.js';
+import { getAllBookings, getDashboard } from '../controllers/adminController.js';
 import { idParamRules } from '../middleware/validate.js';
 import rateLimit from 'express-rate-limit';
+import { approveCommission, disputeCommission, getAdminCommission, getAdminCommissions, rejectCommission, resolveCommission, waiveCommission } from '../controllers/commissionController.js';
 import { adminOnly, protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -12,10 +11,12 @@ const financeLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHe
 router.use(protect, adminOnly);
 router.get('/dashboard', getDashboard);
 router.get('/bookings', getAllBookings);
-router.get('/payments', getPayments);
-router.post('/payments/:id/reconcile', financeLimit, idParamRules, reconcilePayment);
-router.post('/payments/:id/refunds', financeLimit, idParamRules, requestRefund);
-router.get('/payouts', getPayouts);
-router.patch('/payouts/:id', financeLimit, idParamRules, updatePayout);
+router.get('/commissions', getAdminCommissions);
+router.get('/commissions/:id',idParamRules,getAdminCommission);
+router.patch('/commissions/:id/approve-payment',financeLimit,idParamRules,approveCommission);
+router.patch('/commissions/:id/reject-payment',financeLimit,idParamRules,rejectCommission);
+router.patch('/commissions/:id/waive',financeLimit,idParamRules,waiveCommission);
+router.patch('/commissions/:id/dispute',financeLimit,idParamRules,disputeCommission);
+router.patch('/commissions/:id/resolve-dispute',financeLimit,idParamRules,resolveCommission);
 
 export default router;

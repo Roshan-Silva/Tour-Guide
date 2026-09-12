@@ -5,6 +5,8 @@ import mongoose from 'mongoose';
 import Driver from '../models/Driver.js';
 import User from '../models/User.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
+import { protectDriverIdentity } from '../services/driverIdentityService.js';
+import { refreshDriverCommissionStanding } from '../services/commissionService.js';
 
 const secret = (name) => { if (!process.env[name]) throw Object.assign(new Error(`${name} is not configured`), { status: 500 }); return process.env[name]; };
 const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role });
@@ -30,7 +32,7 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   const user = await User.findOne({ email: req.body.email }).select('+password +refreshTokenHash +refreshTokenExpiresAt');
   if (!user || !(await bcrypt.compare(req.body.password, user.password))) return res.status(401).json({ success: false, message: 'Invalid email or password', errors: [] });
-  const session = await issueSession(user, res); res.json({ success: true, message: 'Login successful', data: session, ...session });
+  if(user.role==='driver'){const driver=await Driver.findOne({user:user._id});if(driver)await refreshDriverCommissionStanding(driver._id)}const session = await issueSession(user, res); res.json({ success: true, message: 'Login successful', data: session, ...session });
 };
 
 export const refreshSession = async (req, res) => {
@@ -38,6 +40,7 @@ export const refreshSession = async (req, res) => {
   const decoded = jwt.verify(token, secret('JWT_REFRESH_SECRET')); if (decoded.type !== 'refresh') return res.status(401).json({ success: false, message: 'Invalid refresh session', errors: [] });
   const user = await User.findById(decoded.id).select('+refreshTokenHash +refreshTokenExpiresAt');
   if (!user || user.refreshTokenHash !== hashToken(token) || user.refreshTokenExpiresAt < new Date()) return res.status(401).json({ success: false, message: 'Refresh session is invalid or expired', errors: [] });
+  if(user.role==='driver'){const driver=await Driver.findOne({user:user._id});if(driver)await refreshDriverCommissionStanding(driver._id)}
   const session = await issueSession(user, res); res.json({ success: true, message: 'Session refreshed', data: session, ...session });
 };
 export const logoutUser = async (req, res) => {
@@ -61,10 +64,10 @@ export const getMe = async (req, res) => { const user = await User.findById(req.
 export const updateMe = async (req, res) => { const user = await User.findByIdAndUpdate(req.user, { name: req.body.name.trim() }, { new: true, runValidators: true }); if (!user) return res.status(404).json({ success: false, message: 'Account not found', errors: [] }); res.json({ success: true, message: 'Profile updated', data: publicUser(user) }); };
 
 export const registerDriver = async (req, res) => {
-  const { name, email, password, confirmPassword, phoneNumber, vehicleType, vehicleModel, vehicleCapacity, dailyRate, languages = '', serviceAreas = '', yearsOfExperience = 0, bio = '' } = req.body;
-  if (!name?.trim() || !email?.trim() || !phoneNumber?.trim() || !vehicleType?.trim() || !req.file) return res.status(422).json({ success: false, message: 'Name, email, phone, vehicle type and profile image are required', errors: [] });
+  const { name, email, password, confirmPassword, phoneNumber, nic, drivingLicence, vehicleType, vehicleModel, vehicleCapacity, dailyRate, languages = '', serviceAreas = '', yearsOfExperience = 0, bio = '' } = req.body;
+  if (!name?.trim() || !email?.trim() || !phoneNumber?.trim() || !nic || !drivingLicence || !vehicleType?.trim() || !req.file) return res.status(422).json({ success: false, message: 'Name, email, NIC, driving licence, phone, vehicle type and profile image are required', errors: [] });
   if (!password || password.length < 8 || password !== confirmPassword) return res.status(422).json({ success: false, message: password !== confirmPassword ? 'Passwords do not match' : 'Password must be at least 8 characters', errors: [] });
   const session = await mongoose.startSession(); let user; let driver;
-  try { await session.withTransaction(async () => { const normalizedEmail = email.trim().toLowerCase(); if (await User.exists({ email: normalizedEmail }).session(session)) throw Object.assign(new Error('An account already exists with this email'), { status: 409 }); [user] = await User.create([{ name: name.trim(), email: normalizedEmail, password: await bcrypt.hash(password, 12), role: 'driver' }], { session }); const image = req.file.path || req.file.filename; [driver] = await Driver.create([{ user: user._id, fullName: name.trim(), name: name.trim(), phoneNumber: phoneNumber.trim(), profileImage: image, image, profileImagePublicId: req.file.public_id || '', vehicleType: vehicleType.trim(), vehicleModel: vehicleModel?.trim() || '', vehicleCapacity: Number(vehicleCapacity || 4), dailyRate: Number(dailyRate || 0), yearsOfExperience: Number(yearsOfExperience || 0), bio: bio.trim(), languages: String(languages).split(',').map((x) => x.trim()).filter(Boolean), serviceAreas: String(serviceAreas).split(',').map((x) => x.trim()).filter(Boolean), availability: false, verificationStatus: 'pending' }], { session }); }); const auth = await issueSession(user, res); res.status(201).json({ success: true, message: 'Driver application submitted for verification', data: { ...auth, driver }, ...auth, driver }); }
-  finally { await session.endSession(); }
+  try { const identity=protectDriverIdentity({nic,drivingLicence});await session.withTransaction(async () => { const normalizedEmail = email.trim().toLowerCase(); if (await User.exists({ email: normalizedEmail }).session(session)) throw Object.assign(new Error('An account already exists with this email'), { status: 409 }); [user] = await User.create([{ name: name.trim(), email: normalizedEmail, password: await bcrypt.hash(password, 12), role: 'driver' }], { session }); const image = req.file.path || req.file.filename; [driver] = await Driver.create([{ user: user._id, fullName: name.trim(), name: name.trim(), phoneNumber: phoneNumber.trim(), profileImage: image, image, profileImagePublicId: req.file.public_id || '', vehicleType: vehicleType.trim(), vehicleModel: vehicleModel?.trim() || '', vehicleCapacity: Number(vehicleCapacity || 4), dailyRate: Number(dailyRate || 0), yearsOfExperience: Number(yearsOfExperience || 0), bio: bio.trim(), languages: String(languages).split(',').map((x) => x.trim()).filter(Boolean), serviceAreas: String(serviceAreas).split(',').map((x) => x.trim()).filter(Boolean), availability: false, verificationStatus: 'pending',...identity }], { session }); }); const auth = await issueSession(user, res);const safeDriver={...driver.toObject()};for(const key of ['nicFingerprint','nicEncrypted','nicLast4','drivingLicenceFingerprint','drivingLicenceEncrypted','drivingLicenceLast4'])delete safeDriver[key];res.status(201).json({ success: true, message: 'Driver application submitted for verification', data: { ...auth, driver:safeDriver }, ...auth, driver:safeDriver }); }
+  catch(error){if(error.code===11000)return res.status(409).json({success:false,message:'This identity is already associated with a driver account.',errors:[]});throw error}finally { await session.endSession(); }
 };

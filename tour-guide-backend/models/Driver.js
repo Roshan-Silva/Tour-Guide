@@ -17,7 +17,12 @@ const driverSchema = new mongoose.Schema({
   vehicleImage: { type: String, trim: true, default: '' },
   vehicleImagePublicId: { type: String, trim: true, default: '' },
   availability: { type: Boolean, default: true },
-  verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+  verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected', 'suspended'], default: 'pending' },
+  commissionStanding:{type:String,enum:['clear','due','overdue','restricted'],default:'clear',index:true},
+  availabilityBeforeRestriction:{type:Boolean},
+  identityVerificationRequired:{type:Boolean,default:true,index:true},accountStatus:{type:String,enum:['active','suspended','deleted'],default:'active',index:true},
+  nicFingerprint:{type:String,unique:true,sparse:true,select:false},nicEncrypted:{type:String,select:false},nicLast4:{type:String,select:false},
+  drivingLicenceFingerprint:{type:String,unique:true,sparse:true,select:false},drivingLicenceEncrypted:{type:String,select:false},drivingLicenceLast4:{type:String,select:false},
   averageRating: { type: Number, min: 0, max: 5, default: 0 },
   reviewCount: { type: Number, min: 0, default: 0 },
 
@@ -36,6 +41,6 @@ driverSchema.pre('validate', function normalizeLegacyFields(next) {
   next();
 });
 
-driverSchema.index({ availability: 1, verificationStatus: 1 });
+driverSchema.index({ availability: 1, verificationStatus: 1, commissionStanding:1,accountStatus:1 });
 
 export default mongoose.model('Driver', driverSchema);

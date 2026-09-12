@@ -21,3 +21,12 @@ export const calculateBookingMoney = ({ dailyRate, numberOfDays, commissionRateB
   const platformCommissionAmount = Math.round(driverSubtotal * commissionRateBps / 10000);
   return { currency: CURRENCY, driverDailyRate, driverSubtotal, platformCommissionRateBps: commissionRateBps, platformCommissionAmount, travelerTotal: driverSubtotal + platformCommissionAmount };
 };
+
+// Active direct-payment model. The traveler pays agreedTourPrice directly to
+// the driver; commissionAmount is a separate amount owed by the driver.
+export const calculateCommissionSnapshot = ({ dailyRate, numberOfDays, commissionRateBps = getCommissionRateBps() }) => {
+  const driverDailyRate = toMinorUnits(dailyRate);
+  const agreedTourPrice = driverDailyRate * Number(numberOfDays);
+  const commissionAmount = Math.round(agreedTourPrice * commissionRateBps / 10000);
+  return { currency: CURRENCY, driverDailyRate, agreedTourPrice, commissionRateBps, commissionAmount };
+};

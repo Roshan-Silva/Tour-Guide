@@ -146,6 +146,17 @@ CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 EXPOSE_RESET_TOKEN=false
+PLATFORM_COMMISSION_RATE=0.02
+COMMISSION_PAYMENT_WINDOW_HOURS=24
+AUTO_COMPLETE_GRACE_HOURS=6
+BUSINESS_TIMEZONE=Asia/Colombo
+ENABLE_FINANCIAL_SCHEDULER=false
+DRIVER_IDENTITY_HMAC_KEY=replace-with-a-random-secret-at-least-32-characters
+DRIVER_IDENTITY_ENCRYPTION_KEY=replace-with-a-base64-encoded-32-byte-key
+COMMISSION_BANK_NAME=Your bank
+COMMISSION_ACCOUNT_NAME=Ceylon Explorer
+COMMISSION_ACCOUNT_NUMBER=replace-with-bank-account-number
+COMMISSION_BANK_BRANCH=Your branch
 ```
 
 When all three Cloudinary variables exist, new destination and driver images are uploaded to Cloudinary and their secure URL/public ID are stored. Replacements and deletions remove the previous cloud asset. Without those variables, local disk uploads remain available for development.
@@ -161,31 +172,34 @@ http://localhost:5000/api-docs
 http://localhost:5000/api-docs.json
 ```
 
-## Payment architecture
+## Direct-payment and commission architecture
 
 ```text
-Traveler → booking request → driver accepts → PayHere hosted checkout
-         → verified callback → booking confirmed → trip completed
-         → payout pending → admin approval → external bank transfer recorded
+Traveler creates request → driver accepts → booking is confirmed
+→ tour takes place → traveler pays driver directly
+→ tour completes → 2% commission becomes due to Ceylon Explorer
+→ driver submits bank-transfer reference → admin approves
 ```
 
-Booking state and payment state are separate. A driver changes `pending` to `accepted`; only a cryptographically verified PayHere notification changes it to `confirmed`. Accepted bookings expire after `PAYMENT_WINDOW_HOURS` (24 by default). Check-on-read and check-on-payment cleanup releases their transactional per-day locks; production should additionally invoke the same expiry service from a scheduled job.
+Ceylon Explorer does not collect the tour price and does not pay out drivers. The backend snapshots the agreed tour price and commission rate when a booking is created. Monetary values are stored as integer LKR minor units. Driver acceptance changes `pending` directly to `confirmed`.
 
-All authoritative values are calculated on the backend. Money is stored as integer LKR minor units (cents). The driver subtotal is daily rate × 100 × inclusive days, commission is rounded from the subtotal using `PLATFORM_COMMISSION_RATE`, and traveler total is subtotal plus commission. The configured rate is snapshotted in basis points (`0.02` = `200`) on every booking and payment. Gateway fees and net settlement remain separate reconciliation fields; the full traveler payment is not platform revenue.
+At 23:59:59 Asia/Colombo on the final tour date, a driver, traveler, or administrator can complete the booking. The scheduler can complete it automatically after the configured grace period. Completion creates exactly one commission invoice. With the default 2% rate, a LKR 30,000 tour creates a separate LKR 600 driver commission; the traveler still pays only LKR 30,000 to the driver.
 
-PayHere code is isolated under `services/payments/`. Checkout hashes and callback `md5sig` checks use secrets only on the server. Callbacks also verify merchant ID, order ID, exact amount, currency, and provider status. Notification fingerprints, unique provider references, transactions, and conditional updates provide idempotency. Return/cancel pages never confirm payments; they read MongoDB status with bounded polling.
+The commission is due 24 hours after the deterministic tour end. A driver submits a manual bank-transfer reference, but only an administrator can approve it as paid. If the deadline passes, the driver is removed from public search and cannot accept new work. Login, commission access, and existing confirmed commitments remain available. A late submission does not remove the restriction until approval, waiver, or dispute resolution settles the overdue liability.
 
-Refund records are admin-only and complete only after a successful provider response. Cancellation does not imply a refund. Completed paid trips create one manual payout record; an admin approves it, transfers funds outside the application, and records the bank reference. Chargebacks and reconciliation mismatches remain visible for manual review.
+Driver NIC and driving-licence values are normalized, encrypted with AES-256-GCM, and represented by keyed HMAC fingerprints for duplicate prevention. Generic admin lists show masked values. Full-value reveal is available only through the protected administrator endpoint and creates an audit event.
 
-### PayHere Sandbox testing
+Legacy `Payment`, `Refund`, and `Payout` collections and code are retained only so historical records remain readable. Their routes and frontend flows are not registered in the active application, and no new payout is created.
 
-1. Create a PayHere Sandbox merchant and an API app; obtain sandbox Merchant ID/Secret and App ID/Secret.
-2. Copy `.env.example` to `.env`, keep `PAYHERE_MODE=sandbox`, and enter sandbox values. Never expose secrets through `VITE_` variables.
-3. Set return/cancel URLs to the frontend routes. The notify URL must be a publicly reachable HTTPS backend URL; use a temporary secure development tunnel and never commit it.
-4. Restart the API, create a booking, accept it as the driver, and choose **Pay securely** in My Trips.
-5. Complete sandbox checkout. Verify the `Payment` is paid, the `Booking` is confirmed, and financial audit events exist in MongoDB.
-6. Test cancellation and failure separately. Replay an identical callback to confirm idempotency. Use Admin Finance to test reconciliation, refund, payout approval, and bank-reference recording.
+### Existing database migration
 
-Run `npm run migrate:payments` once for an existing database before using the payment flow.
+Back up the Atlas database, configure the new identity keys, and then run this once:
 
-Before live mode, obtain merchant approval and decide the cancellation/refund policy, gateway fee agreement, tax/accounting treatment, privacy terms, and payout schedule. Replace all credentials and URLs, require HTTPS, set `PAYHERE_MODE=live` explicitly, verify webhook reachability, and perform a controlled live test. Live mode fails startup if required configuration or HTTPS URLs are missing and never silently falls back to sandbox.
+```bash
+cd tour-guide-backend
+npm run migrate:commission-model
+```
+
+The migration is idempotent. It snapshots missing booking values, creates commissions for unambiguous completed bookings, reports historical financial-record counts, and marks legacy drivers without protected identity data as requiring verification. Legacy `accepted` bookings are reported for manual review rather than being guessed into a new state.
+
+For production, enable a durable external scheduler or set `ENABLE_FINANCIAL_SCHEDULER=true` for the built-in interval. Keep the application timezone set to `Asia/Colombo`, protect the encryption/HMAC keys outside source control, and test backup restoration before migration.

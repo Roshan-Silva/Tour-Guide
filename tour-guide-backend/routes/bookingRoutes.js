@@ -1,5 +1,5 @@
 import express from 'express';
-import { addBooking, cancelBooking, getMyBooking, getMyBookings } from '../controllers/bookingController.js';
+import { addBooking, cancelBooking, completeBooking, getMyBooking, getMyBookings } from '../controllers/bookingController.js';
 import { authorizeRoles, protect } from '../middleware/authMiddleware.js';
 import { bookingRules, idParamRules } from '../middleware/validate.js';
 
@@ -10,5 +10,6 @@ router.post('/add', protect, authorizeRoles('traveler'), bookingRules, addBookin
 router.get('/mine', protect, authorizeRoles('traveler'), getMyBookings);
 router.get('/mine/:id', protect, authorizeRoles('traveler'), idParamRules, getMyBooking);
 router.patch('/:id/cancel', protect, authorizeRoles('traveler', 'admin'), idParamRules, cancelBooking);
+router.patch('/:id/complete', protect, authorizeRoles('traveler','admin'), idParamRules, completeBooking);
 
 export default router;

@@ -1,15 +1,15 @@
-export const BLOCKING_STATUSES = ['pending', 'accepted', 'confirmed'];
-export const RELEASE_LOCK_STATUSES = ['rejected', 'cancelled', 'expired', 'completed'];
+export const BLOCKING_STATUSES = ['pending', 'confirmed'];
+export const RELEASE_LOCK_STATUSES = ['rejected', 'cancelled', 'completed'];
 
 export const assertDriverBookable = (driver) => {
-  if (!driver || !driver.availability || driver.verificationStatus !== 'verified') throw new Error('Driver is inactive, unverified, or unavailable');
+  if (!driver || !driver.availability || driver.verificationStatus !== 'verified' || driver.identityVerificationRequired || driver.commissionStanding === 'restricted' || driver.accountStatus === 'suspended' || driver.accountStatus === 'deleted') throw new Error('Driver is inactive, unverified, restricted, or unavailable');
 };
 
 export const statusReleasesAvailability = (status) => RELEASE_LOCK_STATUSES.includes(status);
 
 const transitions = {
-  pending: ['accepted', 'rejected', 'cancelled'],
-  accepted: ['confirmed', 'cancelled', 'expired'],
+  pending: ['confirmed', 'rejected', 'cancelled'],
+  accepted: ['confirmed', 'cancelled'],
   confirmed: ['cancelled', 'completed'],
   rejected: [],
   cancelled: [],
@@ -25,7 +25,7 @@ export const assertBookingActor = ({ booking, actorRole, actorUserId, driverProf
   const ownsDriverBooking = String(booking.driver) === String(driverProfileId);
   if (actorRole === 'admin' && action === 'cancel') return;
   if (actorRole === 'traveler' && action === 'cancel' && ownsTravelerBooking) return;
-  if (actorRole === 'driver' && ['accept', 'reject', 'complete', 'view'].includes(action) && ownsDriverBooking) return;
+  if (actorRole === 'driver' && ['confirm', 'reject', 'complete', 'view'].includes(action) && ownsDriverBooking) return;
   if (actorRole === 'traveler' && action === 'view' && ownsTravelerBooking) return;
   throw new Error('You are not authorized to manage this booking');
 };

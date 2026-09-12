@@ -4,8 +4,7 @@ import { createBooking, transitionBooking } from '../services/bookingService.js'
 import User from '../models/User.js';
 import TripPlan from '../models/TripPlan.js';
 import Review from '../models/Review.js';
-import Payment from '../models/Payment.js';
-import { expireDueBookings, safePayment } from '../services/payments/payment.service.js';
+import { autoCompleteEligibleBookings, completeBookingAndGenerateCommission } from '../services/commissionService.js';
 
 const bookingError = (res, error, fallback = 'Booking request failed') => {
   const knownConflict = error.message.includes('unavailable');
@@ -27,29 +26,26 @@ export const addBooking = async (req, res) => {
 
 export const getMyBookings = async (req, res) => {
   try {
-    await expireDueBookings({ user: req.user });
+    await autoCompleteEligibleBookings();
     const bookings = await Booking.find({ user: req.user })
       .populate('driver', 'fullName name phoneNumber vehicleType vehicleModel profileImage image dailyRate')
       .sort({ startDate: 1 });
     const reviews = await Review.find({ booking: { $in: bookings.map((booking) => booking._id) }, traveler: req.user });
     const byBooking = new Map(reviews.map((review) => [String(review.booking), review]));
-    const payments = await Payment.find({ booking: { $in: bookings.map((booking) => booking._id) } }).sort({ createdAt: -1 });
-    const byPayment = new Map(payments.map((payment) => [String(payment.booking), safePayment(payment)]));
-    res.status(200).json(bookings.map((booking) => ({ ...booking.toObject(), review: byBooking.get(String(booking._id)) || null, payment: byPayment.get(String(booking._id)) || null })));
+    res.status(200).json(bookings.map((booking) => ({ ...booking.toObject(), review: byBooking.get(String(booking._id)) || null })));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching bookings' });
   }
 };
+export const completeBooking = async(req,res,next)=>{try{const booking=await Booking.findById(req.params.id);if(!booking)return res.status(404).json({message:'Booking not found'});if(req.userRole!=='admin')assertBookingActor({booking,actorRole:'traveler',actorUserId:req.user,action:'view'});res.json(await completeBookingAndGenerateCommission({bookingId:booking._id,source:req.userRole==='admin'?'admin':'traveler',actor:req.user}))}catch(e){next(e)}};
 
 export const getMyBooking = async (req, res) => {
   try {
-    await expireDueBookings({ user: req.user, _id: req.params.id });
     const booking = await Booking.findById(req.params.id)
       .populate('driver', 'fullName name phoneNumber vehicleType vehicleModel profileImage image dailyRate');
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
     assertBookingActor({ booking, actorRole: 'traveler', actorUserId: req.user, action: 'view' });
-    const payment = await Payment.findOne({ booking: booking._id }).sort({ createdAt: -1 });
-    res.json({ ...booking.toObject(), payment: payment ? safePayment(payment) : null });
+    res.json(booking);
   } catch (error) {
     if (error.name === 'CastError') return res.status(400).json({ message: 'Invalid booking ID' });
     if (error.message.includes('not authorized')) return res.status(403).json({ message: error.message });

@@ -1,0 +1,10 @@
+import crypto from 'crypto';
+const hmacKey=()=>{const key=process.env.DRIVER_IDENTITY_HMAC_KEY;if(!key||key.length<32)throw new Error('DRIVER_IDENTITY_HMAC_KEY must contain at least 32 characters');return key};
+const encryptionKey=()=>{const raw=process.env.DRIVER_IDENTITY_ENCRYPTION_KEY;const key=raw?Buffer.from(raw,'base64'):Buffer.alloc(0);if(key.length!==32)throw new Error('DRIVER_IDENTITY_ENCRYPTION_KEY must be a base64-encoded 32-byte key');return key};
+export const normalizeNic=(value)=>{const normalized=String(value||'').replace(/[\s-]/g,'').toUpperCase();if(!/^(\d{9}[VX]|\d{12})$/.test(normalized))throw new Error('Enter a valid Sri Lankan NIC');return normalized};
+export const normalizeDrivingLicence=(value)=>{const normalized=String(value||'').replace(/[\s-]/g,'').toUpperCase();if(!/^[A-Z0-9]{5,20}$/.test(normalized))throw new Error('Enter a valid driving licence number');return normalized};
+const fingerprint=(value)=>crypto.createHmac('sha256',hmacKey()).update(value).digest('hex');
+const encrypt=(value)=>{const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',encryptionKey(),iv),encrypted=Buffer.concat([cipher.update(value,'utf8'),cipher.final()]),tag=cipher.getAuthTag();return `${iv.toString('base64')}.${tag.toString('base64')}.${encrypted.toString('base64')}`};
+export const decryptIdentity=(value)=>{const[iv,tag,data]=String(value).split('.').map(x=>Buffer.from(x,'base64')),decipher=crypto.createDecipheriv('aes-256-gcm',encryptionKey(),iv);decipher.setAuthTag(tag);return Buffer.concat([decipher.update(data),decipher.final()]).toString('utf8')};
+export const protectDriverIdentity=({nic,drivingLicence})=>{const n=normalizeNic(nic),d=normalizeDrivingLicence(drivingLicence);return{nicFingerprint:fingerprint(n),nicEncrypted:encrypt(n),nicLast4:n.slice(-4),drivingLicenceFingerprint:fingerprint(d),drivingLicenceEncrypted:encrypt(d),drivingLicenceLast4:d.slice(-4),identityVerificationRequired:true}};
+export const validateIdentityConfiguration=()=>{hmacKey();encryptionKey()};
